@@ -11,6 +11,11 @@
                   <project path="$PROJECT_DIR$/../../culebra" />
                 </projects>
               </build>
+              <build path="$PROJECT_DIR$/../../kotlin-effect">
+                <projects>
+                  <project path="$PROJECT_DIR$/../../kotlin-effect" />
+                </projects>
+              </build>
             </builds>
           </compositeBuild>
         </compositeConfiguration>
@@ -20,6 +25,7 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$/../../culebra" />
+            <option value="$PROJECT_DIR$/../../kotlin-effect" />
             <option value="$PROJECT_DIR$" />
           </set>
         </option>

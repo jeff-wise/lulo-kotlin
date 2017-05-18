@@ -4,6 +4,8 @@
     <bytecodeTargetLevel>
       <module name="culebra_main" target="1.8" />
       <module name="culebra_test" target="1.8" />
+      <module name="effect_main" target="1.8" />
+      <module name="effect_test" target="1.8" />
       <module name="lulo-jvm_main" target="1.8" />
       <module name="lulo-jvm_test" target="1.8" />
       <module name="lulo_main" target="1.8" />
