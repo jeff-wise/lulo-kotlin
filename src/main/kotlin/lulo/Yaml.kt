@@ -17,10 +17,11 @@ object Yaml
 
     fun parseSpec(yamlValue : YamlValue) : Parser<Spec> = when (yamlValue)
     {
-        is YamlDict -> parserApply5(::Spec,
+        is YamlDict -> parserApply6(::Spec,
                                     yamlValue.at("version") ap { x -> parseSpecVersion(x) },
                                     yamlValue.at("authors") ap { x -> parseAuthors(x) },
                                     yamlValue.at("description") ap { x -> parseSpecDescription(x) },
+                                    yamlValue.at("root_type") ap { x -> parseTypeName(x) },
                                     yamlValue.at("types") ap { x -> parseTypes(x) },
                                     yamlValue.maybeAt("constraints") ap { x -> parseConstraints(x) })
         else         -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
@@ -102,11 +103,20 @@ object Yaml
     fun parseTypeData(yamlValue : YamlValue) : Parser<TypeData> = when (yamlValue)
     {
         is YamlDict -> parserApply4(::TypeData,
-                                    yamlValue.text("name"),
+                                    yamlValue.at("name") ap { parseTypeName(it) },
                                     yamlValue.text("label"),
                                     yamlValue.maybeText("description"),
                                     yamlValue.maybeText("group"))
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
+    }
+
+    // Type > Data > Name
+    // -----------------------------------------------------------------------------------------
+
+    fun parseTypeName(yamlValue : YamlValue) : Parser<TypeName> = when (yamlValue)
+    {
+        is YamlText -> result(TypeName(yamlValue.text))
+        else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
     }
 
     // Type > Product
@@ -232,8 +242,7 @@ object Yaml
 
     fun parseCase(yamlValue : YamlValue) : Parser<Case> = when (yamlValue)
     {
-        is YamlDict -> parserApply3(::Case,
-                                    yamlValue.at("name") ap { x -> parseCaseName(x) },
+        is YamlDict -> parserApply2(::Case,
                                     yamlValue.at("description") ap { x -> parseCaseDescription(x) },
                                     parseValueType(yamlValue))
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))

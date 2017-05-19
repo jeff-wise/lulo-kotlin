@@ -2,10 +2,11 @@
 package lulo.document
 
 import com.kispoko.culebra.*
-import effect.Eff
-import effect.Monoid
+import effect.*
 import lulo.*
-import lulo.value.ValueParser
+import lulo.value.*
+import lulo.value.UnexpectedType
+
 
 
 /**
@@ -13,35 +14,180 @@ import lulo.value.ValueParser
  */
 
 
-sealed class SpecDoc
+sealed class SpecDoc(open val path : DocPath)
 
 
-data class SpecDict(val fields : Map<String, SpecDoc>) : SpecDoc()
+data class DocDict(val fields : Map<String, SpecDoc>,
+                   val case : String?,
+                   override val path : DocPath) : SpecDoc(path)
 {
 
-    fun text(key : String) : ValueParser<String>
+    fun case() : String?
     {
-
+        return case
     }
 
 
-    fun integer(key : String) : ValueParser<Integer>
+    fun at(key : String) : ValueParser<SpecDoc>
     {
+        val fieldDoc = fields[key]
 
+        if (fieldDoc == null)
+        {
+            return Err(MissingKey(key), path)
+        }
+        else
+        {
+            return Val(fieldDoc, path)
+        }
+    }
+
+
+    fun list(key : String) : ValueParser<DocList>
+    {
+        val fieldDoc = fields[key]
+
+        if (fieldDoc == null)
+        {
+            return Err(MissingKey(key), path)
+        }
+        else
+        {
+            when (fieldDoc)
+            {
+                is DocList -> return Val(fieldDoc, path)
+                else       -> return Err(UnexpectedType(DocType.LIST, docType(fieldDoc)), path)
+            }
+        }
+    }
+
+
+    fun text(key : String) : ValueParser<String>
+    {
+        val fieldDoc = fields[key]
+
+        if (fieldDoc == null)
+        {
+            return Err(MissingKey(key), path)
+        }
+        else
+        {
+            when (fieldDoc)
+            {
+                is DocText -> return Val(fieldDoc.text, path)
+                else       -> return Err(UnexpectedType(DocType.TEXT, docType(fieldDoc)), path)
+            }
+        }
+    }
+
+
+    fun integer(key : String) : ValueParser<Long>
+    {
+        val fieldDoc = fields[key]
+
+        if (fieldDoc == null)
+        {
+            return Err(MissingKey(key), path)
+        }
+        else
+        {
+            when (fieldDoc)
+            {
+                is DocInteger -> return Val(fieldDoc.integer, path)
+                else           -> return Err(UnexpectedType(DocType.INTEGER, docType(fieldDoc)), path)
+            }
+        }
+    }
+
+
+    fun maybeInteger(key : String) : ValueParser<Long?>
+    {
+        val fieldDoc = fields[key]
+
+        if (fieldDoc == null)
+        {
+            return Val(null, path)
+        }
+        else
+        {
+            when (fieldDoc)
+            {
+                is DocInteger -> return Val(fieldDoc.integer, path)
+                else          -> return Err(UnexpectedType(DocType.INTEGER, docType(fieldDoc)), path)
+            }
+        }
     }
 
 
     fun double(key : String) : ValueParser<Double>
     {
+        val fieldDoc   = fields[key]
 
+        if (fieldDoc == null)
+        {
+            return Err(MissingKey(key), path)
+        }
+        else
+        {
+            when (fieldDoc)
+            {
+                is DocNumber -> return Val(fieldDoc.number, path)
+                else          -> return Err(UnexpectedType(DocType.NUMBER, docType(fieldDoc)), path)
+            }
+        }
+    }
+
+
+    fun boolean(key : String) : ValueParser<Boolean>
+    {
+        val fieldDoc    = fields[key]
+
+        if (fieldDoc == null)
+        {
+            return Err(MissingKey(key), path)
+        }
+        else
+        {
+            when (fieldDoc)
+            {
+                is DocBoolean -> return Val(fieldDoc.boolean, path)
+                else          -> return Err(UnexpectedType(DocType.BOOLEAN, docType(fieldDoc)), path)
+            }
+        }
+    }
+}
+
+
+data class DocList(val docs : List<SpecDoc>,
+                   override val path : DocPath) : SpecDoc(path)
+{
+
+    fun <T> map(f : (SpecDoc) -> ValueParser<T>) : ValueParser<List<T>>
+    {
+        val results = mutableListOf<T>()
+
+        docs.forEach { doc ->
+
+            val valueParser = f(doc)
+
+            when (valueParser) {
+                is Val -> results.add(valueParser.value)
+                is Err  -> {
+                    return Err(valueParser.error, path)
+                }
+            }
+        }
+
+        return Val(results, path)
     }
 
 }
 
-data class SpecList(val fields : List<SpecDoc>) : SpecDoc()
-data class SpecText(val text : String) : SpecDoc()
-data class SpecInteger(val integer : Long) : SpecDoc()
-data class SpecNumber(val number : Double) : SpecDoc()
+
+data class DocText(val text : String, override val path : DocPath) : SpecDoc(path)
+data class DocInteger(val integer : Long, override val path : DocPath) : SpecDoc(path)
+data class DocNumber(val number : Double, override val path : DocPath) : SpecDoc(path)
+data class DocBoolean(val boolean: Boolean, override val path : DocPath) : SpecDoc(path)
 
 
 enum class DocType
@@ -50,96 +196,167 @@ enum class DocType
     LIST,
     TEXT,
     INTEGER,
-    NUMBER
+    NUMBER,
+    BOOLEAN
 }
 
 
 fun docType(doc : SpecDoc) : DocType = when (doc)
 {
-    is SpecDict    -> DocType.DICT
-    is SpecList    -> DocType.LIST
-    is SpecText    -> DocType.TEXT
-    is SpecInteger -> DocType.INTEGER
-    is SpecNumber  -> DocType.NUMBER
+    is DocDict    -> DocType.DICT
+    is DocList    -> DocType.LIST
+    is DocText    -> DocType.TEXT
+    is DocInteger -> DocType.INTEGER
+    is DocNumber  -> DocType.NUMBER
+    is DocBoolean -> DocType.BOOLEAN
 }
 
 
-typealias SpecObjectParser<A> = Eff<SpecObjectParseError, SpecObjectParsePath, A>
+
+typealias DocParse = Eff<List<DocParseError>, Identity, SpecDoc>
 
 
-sealed class SpecObjectParseError
+fun <A> docError(docErrors : List<DocParseError>) : Eff<List<DocParseError>, Identity, A> =
+        Err(docErrors, Identity())
 
-data class UnknownCase(val caseName : String) : SpecObjectParseError()
-data class FieldDoesNotExist(val key : String) : SpecObjectParseError()
+fun <A> docResult(docResult : A) : Eff<List<DocParseError>, Identity, A> =
+        Val(docResult, Identity())
 
 
 
-data class SpecObjectParsePath(val locations : List<SpecObjectParseLocation>) : Monoid<SpecObjectParsePath>
+sealed class DocParseError(open val path : DocPath)
+
+data class ExpectedProduct(override val path : DocPath) : DocParseError(path)
 {
-    override fun mappend(path: SpecObjectParsePath) : SpecObjectParsePath
+    override fun toString(): String  = "Expected Product Type\n    path: $path"
+}
+
+data class ExpectedSum(override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  = "Expected Sum Type\n    path: $path"
+}
+
+data class UnknownKind(override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  = "Unknown Kind\n    path: $path"
+}
+
+data class MissingField(val fieldName : String, override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  = "Missing Field\n    field: $fieldName\n    path: $path"
+}
+
+data class YamlError(val yamlError : ParseError, override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  = "Yaml Error\n    yaml: $yamlError\n    path: $path"
+}
+
+data class YamlStringError(val yamlStringParseErrors : List<StringParseError>,
+                           override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  = "Yaml Parse Error\n    yaml: $yamlStringParseErrors\n    path: $path"
+}
+
+data class UnexpectedType(val expected : YamlType,
+                          val found : YamlType,
+                          override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  = """
+                                       Unexpected Type\n" +
+                                           expected: $expected\n
+                                           found: $found\n
+                                           path: $path
+                                        """
+}
+
+data class UnknownPrimType(val primValueType : PrimValueType,
+                           override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  = """
+                                       Unknown Primitive Type\n" +
+                                           type: $primValueType
+                                           path: $path
+                                       """
+}
+
+data class TypeDoesNotExist(val typeName : TypeName, override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  = """
+                                       Type Does Not Exist\n" +
+                                           type: $typeName
+                                           path: $path
+                                       """
+}
+
+
+data class DocPath(val nodes : List<DocNode>) : Monoid<DocPath>
+{
+
+    infix fun withLocation(node : DocNode) : DocPath =
+        DocPath(this.nodes.plus(node))
+
+
+    override fun mappend(path: DocPath) : DocPath = path
+
+//    {
+//        val locations = mutableListOf<DocParseLocation>()
+//
+//        for (location1 in this.locations) {
+//            when (location1) {
+//                is DocKeyLocation   -> locations.add(location1)
+//                is DocIndexLocation -> locations.add(location1)
+//            }
+//        }
+//
+//        for (location2 in path.locations) {
+//            when (location2) {
+//                is DocKeyLocation   -> locations.add(location2)
+//                is DocIndexLocation -> locations.add(location2)
+//            }
+//        }
+//
+//        return DocPath(locations)
+//    }
+
+
+    override fun toString(): String
     {
-        val locations = mutableListOf<SpecObjectParseLocation>()
+        var pathString = ""
 
-        for (location1 in this.locations) {
-            when (location1) {
-                is SpecObjectKeyLocation -> locations.add(location1)
-                is SpecObjectIndexLocation -> locations.add(location1)
-            }
+        var sep = ""
+        for (node in this.nodes) {
+            pathString += sep
+            pathString += node.toString()
+            sep = " -> "
         }
 
-        for (location2 in path.locations) {
-            when (location2) {
-                is SpecObjectKeyLocation   -> locations.add(location2)
-                is SpecObjectIndexLocation -> locations.add(location2)
-            }
-        }
+        return pathString;
+    }
 
-        return SpecObjectParsePath(locations)
+}
+
+sealed class DocNode
+
+
+data class DocKeyNode(val key : String) : DocNode()
+{
+    override fun toString(): String
+    {
+        return "[key: $key]"
     }
 }
 
-
-sealed class SpecObjectParseLocation
-
-data class SpecObjectKeyLocation(val key : String) : SpecObjectParseLocation()
-data class SpecObjectIndexLocation(val index : Int) : SpecObjectParseLocation()
-
-
-
-
-sealed class DocParse
-
-data class DocResult(val value : SpecDoc) : DocParse()
-data class DocErrors(val errors : List<DocParseError>) : DocParse()
-
-
-sealed class DocParseError(open val path : DocParsePath)
-
-data class ExpectedProduct(override val path : DocParsePath) : DocParseError(path)
-data class UnknownKind(override val path : DocParsePath) : DocParseError(path)
-data class MissingField(val fieldName : String, override val path : DocParsePath) : DocParseError(path)
-data class YamlError(val yamlError : ParseError, override val path : DocParsePath) : DocParseError(path)
-data class YamlStringError(val yamlStringParseErrors : List<StringParseError>,
-                           override val path : DocParsePath) : DocParseError(path)
-data class UnexpectedType(val expected : YamlType,
-                          val found : YamlType,
-                          override val path : DocParsePath) : DocParseError(path)
-data class UnknownPrimType(val primValueType : PrimValueType,
-                           override val path : DocParsePath) : DocParseError(path)
-data class TypeDoesNotExist(val typeName : TypeName, override val path : DocParsePath) : DocParseError(path)
-
-
-data class DocParsePath(val locations : List<DocParseLocation>)
+data class DocIndexNode(val index : Int) : DocNode()
 {
-
-    infix fun withLocation(location : DocParseLocation) : DocParsePath =
-        DocParsePath(this.locations.plus(location))
-
+    override fun toString(): String
+    {
+        return "[index: $index]"
+    }
 }
 
-sealed class DocParseLocation
-
-data class DocKeyLocation(val key : String) : DocParseLocation()
-data class DocIndexLocation(val index : Int) : DocParseLocation()
+object DocNullNode : DocNode()
+{
+    override fun toString(): String = ""
+}
 
 

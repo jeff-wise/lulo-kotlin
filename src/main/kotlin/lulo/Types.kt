@@ -5,12 +5,16 @@ package lulo
 import com.kispoko.culebra.*
 import com.kispoko.culebra.StringErrors
 import com.kispoko.culebra.StringResult
+import effect.Err
+import effect.Val
 import lulo.document.*
 
 
 
 /**
  * Lulo Types
+ *
+ * REALLY UGLY CODE. WORKS FOR NOW
  */
 
 // SPECIFICATION
@@ -27,10 +31,27 @@ data class Spec(val version : SpecVersion,
     val typeByName = types.associateBy { it.data.name }
 
 
-    fun document(yamlString : String) : DocParse
+    fun document(yamlString : String) : SpecDoc?
+    {
+        val docParse = documentParse(yamlString)
+        System.out.println("Spec parse document")
+        when (docParse)
+        {
+            is Val -> return docParse.value
+            is Err -> docParse.error.forEachIndexed { index, docParseError ->
+                System.out.println("Error (${index + 1})")
+                System.out.println(docParseError.toString())
+                return null
+            }
+        }
+        return null
+    }
+
+
+    fun documentParse(yamlString : String) : DocParse
     {
         val stringParse = YamlString.parse(yamlString)
-        val path = DocParsePath(listOf())
+        val path = DocPath(listOf())
 
         when (stringParse)
         {
@@ -38,21 +59,22 @@ data class Spec(val version : SpecVersion,
             {
                 val rootType = typeByName[this.rootTypeName]
                 if (rootType == null)
-                    return DocErrors(listOf(TypeDoesNotExist(this.rootTypeName, path)))
+                    return docError(listOf(TypeDoesNotExist(this.rootTypeName, path)))
                 else
-                    return parseDocument(rootType.type, stringParse.value, path)
+                    return parseDocument(rootType.type, null, stringParse.value, path)
             }
             is StringErrors ->
             {
-                return DocErrors(listOf(YamlStringError(stringParse.errors, path)))
+                return docError(listOf(YamlStringError(stringParse.errors, path)))
             }
         }
     }
 
 
     private fun parseDocument(type : ObjectType,
+                              case : String?,
                               yamlValue : YamlValue,
-                              path : DocParsePath) : DocParse = when (type)
+                              path : DocPath) : DocParse = when (type)
     {
         is Product -> when (yamlValue)
         {
@@ -68,20 +90,24 @@ data class Spec(val version : SpecVersion,
                     {
                         is Result ->
                         {
-                            val fieldPath = path withLocation DocKeyLocation(field.name.name)
+                            val fieldPath = path withLocation DocKeyNode(field.name.name)
                             val fieldParse = parseField(field, fieldYamlValue.value, fieldPath)
 
                             when (fieldParse)
                             {
-                                is DocResult -> docMap.put(field.name.name, fieldParse.value)
-                                is DocErrors -> errors.addAll(fieldParse.errors)
+                                is Val -> docMap.put(field.name.name, fieldParse.value)
+                                is Err -> errors.addAll(fieldParse.error)
                             }
                         }
                         is Error ->
                         {
                             val fieldYamlError = fieldYamlValue.error
                             when (fieldYamlError) {
-                                is KeyDoesNotExist -> errors.add(MissingField(field.name.name, path))
+                                is KeyDoesNotExist ->
+                                {
+                                    if (field.presence == FieldPresence.REQUIRED)
+                                        errors.add(MissingField(field.name.name, path))
+                                }
                                 else               -> errors.add(YamlError(fieldYamlError, path))
                             }
                         }
@@ -89,58 +115,71 @@ data class Spec(val version : SpecVersion,
                 }
 
                 if (errors.size > 0)
-                    DocErrors(errors)
+                    docError<SpecDoc>(errors)
                 else
-                    DocResult(SpecDict(docMap))
+                    docResult<SpecDoc>(DocDict(docMap, case, path))
             }
-            else        -> DocErrors(listOf(ExpectedProduct(path)))
+            else        -> docError(listOf(ExpectedProduct(path)))
         }
-        is Sum ->
+        is Sum -> when (yamlValue)
         {
-            when (yamlValue)
+            is YamlDict ->
             {
-                is YamlDict ->
+                val typeYamlValueParser = yamlValue.at("type")
+                when (typeYamlValueParser)
                 {
-                    val typeYamlValueParser = yamlValue.at("type")
-                    when (typeYamlValueParser)
+                    is Result ->
                     {
-                        is Result ->
+                        val typeYamlValue = typeYamlValueParser.value
+                        when (typeYamlValue)
                         {
-                            val typeYamlValue = typeYamlValueParser.value
-                            when (typeYamlValue)
+                            is YamlText ->
                             {
-                                is YamlText ->
-                                {
-                                    val caseTypeName = TypeName(typeYamlValue.text)
-                                    val caseType = typeByName[caseTypeName]
-                                    if (caseType == null)
-                                        DocErrors(listOf(TypeDoesNotExist(caseTypeName, path)))
-                                    else
-                                        parseDocument(caseType.type, yamlValue, path)
+                                val caseTypeName = TypeName(typeYamlValue.text)
+                                val caseType = typeByName[caseTypeName]
+                                if (caseType == null) {
+                                    docError(listOf(TypeDoesNotExist(caseTypeName, path)))
                                 }
-                                else        -> DocErrors(listOf(UnexpectedType(YamlType.TEXT,
-                                                                               yamlType(typeYamlValue),
-                                                                               path)))
+                                else {
+                                    val caseYamlValueParser = yamlValue.at(caseTypeName.name)
+                                    when (caseYamlValueParser)
+                                    {
+                                        is Result -> parseDocument(caseType.type, caseTypeName.name,
+                                                                   caseYamlValueParser.value, path)
+                                        is Error  ->
+                                        {
+                                            val fieldYamlError = caseYamlValueParser.error
+                                            when (fieldYamlError) {
+                                                is KeyDoesNotExist ->
+                                                    docError(listOf(MissingField(caseTypeName.name, path)))
+                                                else               ->
+                                                    docError(listOf(YamlError(fieldYamlError, path)))
+                                            }
+                                        }
+                                    }
+                                }
                             }
-                        }
-                        is Error  ->
-                        {
-                            val fieldYamlError = typeYamlValueParser.error
-                            when (fieldYamlError) {
-                                is KeyDoesNotExist -> DocErrors(listOf(MissingField("type", path)))
-                                else               -> DocErrors(listOf(YamlError(fieldYamlError, path)))
-                            }
+                            else        -> docError(listOf(UnexpectedType(YamlType.TEXT,
+                                                                          yamlType(typeYamlValue),
+                                                                          path)))
                         }
                     }
-
+                    is Error  ->
+                    {
+                        val fieldYamlError = typeYamlValueParser.error
+                        when (fieldYamlError) {
+                            is KeyDoesNotExist -> docError(listOf(MissingField("type", path)))
+                            else               -> docError(listOf(YamlError(fieldYamlError, path)))
+                        }
+                    }
                 }
-                else        -> DocErrors(listOf(UnexpectedType(YamlType.DICT, yamlType(yamlValue), path)))
-            }
 
+            }
+            else        -> docError(listOf(ExpectedSum(path)))
         }
         else   ->
         {
-            DocErrors(listOf(UnknownKind(path)))
+            docError(listOf(UnknownKind(path)))
         }
 
     }
@@ -148,7 +187,7 @@ data class Spec(val version : SpecVersion,
 
     private fun parseField(field : Field,
                            yamlValue: YamlValue,
-                           path : DocParsePath) : DocParse = when (field.valueType)
+                           path : DocPath) : DocParse = when (field.valueType)
     {
         is Prim ->
         {
@@ -161,8 +200,10 @@ data class Spec(val version : SpecVersion,
                 parseString(yamlValue, path)
             else if (primValueType == PrimValueType.STRING_UTF8)
                 parseString(yamlValue, path)
+            else if (primValueType == PrimValueType.BOOLEAN)
+                parseBoolean(yamlValue, path)
             else
-                DocErrors(listOf(UnknownPrimType(primValueType, path)))
+                docError(listOf(UnknownPrimType(primValueType, path)))
         }
         is PrimList ->
         {
@@ -185,21 +226,23 @@ data class Spec(val version : SpecVersion,
                                 parseString(yamlValue, path)
                             else if (primValueType == PrimValueType.STRING_UTF8)
                                 parseString(yamlValue, path)
+                            else if (primValueType == PrimValueType.BOOLEAN)
+                                parseBoolean(yamlValue, path)
                             else
-                                DocErrors(listOf(UnknownPrimType(primValueType, path)))
+                                docError(listOf(UnknownPrimType(primValueType, path)))
 
                         when (elementDocParse) {
-                            is DocResult -> docs.add(elementDocParse.value)
-                            is DocErrors -> errors.addAll(elementDocParse.errors)
+                            is Val -> docs.add(elementDocParse.value)
+                            is Err -> errors.addAll(elementDocParse.error)
                         }
                     }
 
                     if (errors.size > 0)
-                        DocErrors(errors)
+                        docError<SpecDoc>(errors)
                     else
-                        DocResult(SpecList(docs))
+                        docResult<SpecDoc>(DocList(docs, path))
                 }
-                else         -> DocErrors(listOf(UnexpectedType(YamlType.ARRAY, yamlType(yamlValue), path)))
+                else         -> docError(listOf(UnexpectedType(YamlType.ARRAY, yamlType(yamlValue), path)))
             }
         }
         is Custom ->
@@ -207,9 +250,9 @@ data class Spec(val version : SpecVersion,
             val fieldTypeName = TypeName(field.valueType.name.name)
             val customType = typeByName[fieldTypeName]
             if (customType == null)
-                DocErrors(listOf(TypeDoesNotExist(fieldTypeName, path)))
+                docError(listOf(TypeDoesNotExist(fieldTypeName, path)))
             else
-                parseDocument(customType.type, yamlValue, path)
+                parseDocument(customType.type, null, yamlValue, path)
         }
         is CustomList ->
         {
@@ -222,7 +265,7 @@ data class Spec(val version : SpecVersion,
 
                     if (customType == null)
                     {
-                        DocErrors(listOf(TypeDoesNotExist(customTypeName, path)))
+                        docError(listOf(TypeDoesNotExist(customTypeName, path)))
                     }
                     else
                     {
@@ -231,48 +274,54 @@ data class Spec(val version : SpecVersion,
 
                         yamlValue.list.forEachIndexed { index, yamlListValue ->
 
-                            val indexPath = path withLocation DocIndexLocation(index)
-                            val docParse = parseDocument(customType.type, yamlListValue, indexPath)
+                            val indexPath = path withLocation DocIndexNode(index)
+                            val docParse = parseDocument(customType.type, null, yamlListValue, indexPath)
 
                             when (docParse)
                             {
-                                is DocResult -> docs.add(docParse.value)
-                                is DocErrors -> errors.addAll(docParse.errors)
+                                is Val -> docs.add(docParse.value)
+                                is Err -> errors.addAll(docParse.error)
                             }
                         }
 
                         if (errors.size > 0)
-                            DocErrors(errors)
+                            docError<SpecDoc>(errors)
                         else
-                            DocResult(SpecList(docs))
+                            docResult<SpecDoc>(DocList(docs, path))
                     }
                 }
-                else         -> DocErrors(listOf(UnexpectedType(YamlType.ARRAY, yamlType(yamlValue), path)))
+                else         -> docError(listOf(UnexpectedType(YamlType.ARRAY, yamlType(yamlValue), path)))
             }
         }
     }
 
 
-    private fun parseInteger(yamlValue : YamlValue, path : DocParsePath) : DocParse = when (yamlValue)
+    private fun parseInteger(yamlValue : YamlValue, path : DocPath) : DocParse = when (yamlValue)
     {
-        is YamlInteger -> DocResult(SpecInteger(yamlValue.number))
-        else           -> DocErrors(listOf(UnexpectedType(YamlType.INTEGER, yamlType(yamlValue), path)))
+        is YamlInteger -> docResult(DocInteger(yamlValue.number, path))
+        else           -> docError(listOf(UnexpectedType(YamlType.INTEGER, yamlType(yamlValue), path)))
     }
 
 
-    private fun parseNumber(yamlValue : YamlValue, path : DocParsePath) : DocParse = when (yamlValue)
+    private fun parseNumber(yamlValue : YamlValue, path : DocPath) : DocParse = when (yamlValue)
     {
-        is YamlFloat -> DocResult(SpecNumber(yamlValue.number))
-        else         -> DocErrors(listOf(UnexpectedType(YamlType.FLOAT, yamlType(yamlValue), path)))
+        is YamlFloat -> docResult(DocNumber(yamlValue.number, path))
+        else         -> docError(listOf(UnexpectedType(YamlType.FLOAT, yamlType(yamlValue), path)))
     }
 
 
-    private fun parseString(yamlValue : YamlValue, path : DocParsePath) : DocParse = when (yamlValue)
+    private fun parseString(yamlValue : YamlValue, path : DocPath) : DocParse = when (yamlValue)
     {
-        is YamlText -> DocResult(SpecText(yamlValue.text))
-        else        -> DocErrors(listOf(UnexpectedType(YamlType.TEXT, yamlType(yamlValue), path)))
+        is YamlText -> docResult(DocText(yamlValue.text, path))
+        else        -> docError(listOf(UnexpectedType(YamlType.TEXT, yamlType(yamlValue), path)))
     }
 
+
+    private fun parseBoolean(yamlValue : YamlValue, path : DocPath) : DocParse = when (yamlValue)
+    {
+        is YamlBool -> docResult(DocBoolean(yamlValue.bool, path))
+        else        -> docError(listOf(UnexpectedType(YamlType.BOOL, yamlType(yamlValue), path)))
+    }
 
 }
 
@@ -365,8 +414,7 @@ data class FieldDefaultValue(val value : String)
 // CASE
 // -----------------------------------------------------------------------------
 
-data class Case(val name : CaseName,
-                val description : CaseDescription,
+data class Case(val description : CaseDescription,
                 val type : ValueType)
 
 // lulo.Case > Name
