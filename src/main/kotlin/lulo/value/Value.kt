@@ -12,76 +12,69 @@ import lulo.document.*
  */
 
 
-typealias ValueParser<A> = Eff<ValueError, DocPath, A>
+typealias ValueParser<A> = Eff<ValueError, Identity, A>
 
 
 
-sealed class ValueError
+sealed class ValueError(open val path : DocPath)
 
-data class UnexpectedType(val expected : DocType, val found : DocType) : ValueError()
-data class MissingKey(val key : String) : ValueError()
-data class UnknownCase(val caseName : String?) : ValueError()
+data class UnexpectedType(val expected : DocType,
+                          val found : DocType,
+                          override val path : DocPath) : ValueError(path)
+{
+    override fun toString(): String =
+            """
+            Unexpected Type:
+                Expected : $expected
+                Found : $found
+                Path : $path
+            """
+}
 
+data class MissingKey(val key : String, override val path : DocPath) : ValueError(path)
+{
+    override fun toString(): String =
+            """
+            Missing Key: $key
+            Path : $path
+            """
+}
 
-//fun <A> valueError(valueError : ValueError) : Eff<ValueError, ValueParsePath, A> =
-//        Err(valueError, ValueParsePath(listOf(NullNode)))
+data class UnknownCase(val caseName : String?, override val path : DocPath) : ValueError(path)
+{
+    override fun toString(): String =
+            """
+            Unknown Case:
+                Case : $caseName
+                Path : $path
+            """
+}
+
+data class UnknownEnumValue(val enumName : String?,
+                            val enumValue : String,
+                            override val path : DocPath) : ValueError(path)
+{
+    override fun toString(): String  =
+            """
+            Unknown EnumValue
+                Enum: $enumName
+                Value: $enumValue
+                Path: $path
+            """
+}
+
 //
-//fun <A> valueResult(valueResult : A) : Eff<ValueError, ValueParsePath, A> =
-//        Val(valueResult, ValueParsePath(listOf(NullNode)))
+//fun <E> errorMessage(valueErr : Err<ValueError,DocLog,E>) : String =
+//        """
+//        Value Parser Error:
+//            Error: ${valueErr.error}
+//            Path: ${valueErr.env}
+//        """
 
 
+fun <A> valueResult(valueResult : A) : Eff<ValueError, DocLog, A> =
+        Val(valueResult, DocLogEmpty())
 
-//
-//data class ValueParsePath(val nodes : List<ValueParseNode>) : Monoid<ValueParsePath>
-//{
-//
-//    infix fun withNode(node : ValueParseNode) : ValueParsePath =
-//        ValueParsePath(this.nodes.plus(node))
-//
-//
-//    override fun mappend(path: ValueParsePath) : ValueParsePath
-//    {
-//        val nodes = mutableListOf<ValueParseNode>()
-//
-//        for (node in this.nodes) {
-//            when (node) {
-//                is KeyNode   -> nodes.add(node)
-//                is IndexNode -> nodes.add(node)
-//            }
-//        }
-//
-//        for (node in path.nodes) {
-//            when (node) {
-//                is KeyNode   -> nodes.add(node)
-//                is IndexNode -> nodes.add(node)
-//            }
-//        }
-//
-//        return ValueParsePath(nodes)
-//    }
-//
-//}
-//
-
-
-
-//sealed class ValueParseNode : Monoid<ValueParseNode>
-//{
-//    override fun mappend(x: ValueParseNode): ValueParseNode  = x
-//}
-//
-//
-//
-//data class IndexNode(val index : Int) : ValueParseNode()
-//data class KeyNode(val key : String) : ValueParseNode()
-//object NullNode : ValueParseNode()
-
-
-//fun nodePath(node : ValueParseNode) : ValueParsePath =
-//        ValueParsePath(listOf(node))
-
-
-
-
-
+fun <A> valueError(valueResult : A) : Eff<ValueError, DocLog, A> =
+        Val(valueResult, DocLogEmpty())
 

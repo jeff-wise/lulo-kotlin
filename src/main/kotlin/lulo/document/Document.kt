@@ -1,9 +1,11 @@
 
 package lulo.document
 
+
 import com.kispoko.culebra.*
 import effect.*
-import lulo.*
+import lulo.spec.PrimValueType
+import lulo.spec.TypeName
 import lulo.value.*
 import lulo.value.UnexpectedType
 
@@ -12,15 +14,16 @@ import lulo.value.UnexpectedType
 /**
  * Specification Document
  */
+sealed class SpecDoc(open val path : DocPath,
+                     open val case : String?)
 
 
-sealed class SpecDoc(open val path : DocPath)
-
-
-data class DocDict(val fields : Map<String, SpecDoc>,
-                   val case : String?,
-                   override val path : DocPath) : SpecDoc(path)
+data class DocDict(val fields : Map<String,SpecDoc>,
+                   override val case : String?,
+                   override val path : DocPath) : SpecDoc(path, case)
 {
+
+    constructor(fields : Map<String,SpecDoc>, path : DocPath) : this(fields, null, path)
 
     fun case() : String?
     {
@@ -34,11 +37,26 @@ data class DocDict(val fields : Map<String, SpecDoc>,
 
         if (fieldDoc == null)
         {
-            return Err(MissingKey(key), path)
+            return effError(MissingKey(key, path))
         }
         else
         {
-            return Val(fieldDoc, path)
+            return effValue(fieldDoc)
+        }
+    }
+
+
+    fun maybeAt(key : String) : ValueParser<Maybe<SpecDoc>>
+    {
+        val fieldDoc = fields[key]
+
+        if (fieldDoc == null)
+        {
+            return effValue(Nothing())
+        }
+        else
+        {
+            return effValue(Just(fieldDoc))
         }
     }
 
@@ -49,15 +67,54 @@ data class DocDict(val fields : Map<String, SpecDoc>,
 
         if (fieldDoc == null)
         {
-            return Err(MissingKey(key), path)
+            return effError(MissingKey(key, path))
         }
         else
         {
             when (fieldDoc)
             {
-                is DocList -> return Val(fieldDoc, path)
-                else       -> return Err(UnexpectedType(DocType.LIST, docType(fieldDoc)), path)
+                is DocList -> return effValue(fieldDoc)
+                else       -> return effError(UnexpectedType(DocType.LIST, docType(fieldDoc), path))
             }
+        }
+    }
+
+
+    inline fun <reified A : Enum<A>> enum(key : String) : ValueParser<A>
+    {
+        val fieldDoc = fields[key]
+
+        if (fieldDoc == null)
+        {
+            return effError(MissingKey(key, path))
+        }
+        else
+        {
+            when (fieldDoc)
+            {
+                is DocText ->
+                {
+                    try {
+                        return effValue(enumValueOf<A>(fieldDoc.text))
+                    }
+                    catch (e : Exception) {
+                        return effError(UnknownEnumValue(A::class.simpleName, fieldDoc.text, path))
+                    }
+                }
+                else       -> return effError(UnexpectedType(DocType.TEXT, docType(fieldDoc), path))
+            }
+        }
+    }
+
+
+    inline fun <reified A : Enum<A>> maybeEnum(key : String) : ValueParser<Maybe<A>>
+    {
+        val enumParser = this.enum<A>(key)
+
+        when (enumParser)
+        {
+            is Val -> return effValue(Just(enumParser.value))
+            is Err -> return effValue(Nothing())
         }
     }
 
@@ -68,53 +125,78 @@ data class DocDict(val fields : Map<String, SpecDoc>,
 
         if (fieldDoc == null)
         {
-            return Err(MissingKey(key), path)
+            return effError(MissingKey(key, path))
         }
         else
         {
             when (fieldDoc)
             {
-                is DocText -> return Val(fieldDoc.text, path)
-                else       -> return Err(UnexpectedType(DocType.TEXT, docType(fieldDoc)), path)
+                is DocText -> return effValue(fieldDoc.text)
+                else       -> return effError(UnexpectedType(DocType.TEXT, docType(fieldDoc), path))
             }
         }
     }
 
 
-    fun integer(key : String) : ValueParser<Long>
+    fun maybeText(key : String) : ValueParser<Maybe<String>>
+    {
+        val textParser = this.text(key)
+
+        when (textParser)
+        {
+            is Val -> return effValue(Just(textParser.value))
+            is Err -> return effValue(Nothing())
+        }
+
+    }
+
+
+    fun int(key : String) : ValueParser<Int>
     {
         val fieldDoc = fields[key]
 
         if (fieldDoc == null)
         {
-            return Err(MissingKey(key), path)
+            return effError(MissingKey(key, path))
         }
         else
         {
             when (fieldDoc)
             {
-                is DocInteger -> return Val(fieldDoc.integer, path)
-                else           -> return Err(UnexpectedType(DocType.INTEGER, docType(fieldDoc)), path)
+                is DocNumber -> return effValue(fieldDoc.number.toInt())
+                else         -> return effError(UnexpectedType(DocType.NUMBER, docType(fieldDoc), path))
             }
         }
     }
 
 
-    fun maybeInteger(key : String) : ValueParser<Long?>
+    fun long(key : String) : ValueParser<Long>
     {
         val fieldDoc = fields[key]
 
         if (fieldDoc == null)
         {
-            return Val(null, path)
+            return effError(MissingKey(key, path))
         }
         else
         {
             when (fieldDoc)
             {
-                is DocInteger -> return Val(fieldDoc.integer, path)
-                else          -> return Err(UnexpectedType(DocType.INTEGER, docType(fieldDoc)), path)
+                is DocNumber -> return effValue(fieldDoc.number.toLong())
+                else         -> return effError(UnexpectedType(DocType.NUMBER, docType(fieldDoc), path))
             }
+        }
+    }
+
+
+    fun maybeInt(key : String) : ValueParser<Maybe<Int>>
+    {
+        val integerParser = this.int(key)
+
+        when (integerParser)
+        {
+            is Val -> return effValue(Just(integerParser.value))
+            is Err -> return effValue(Nothing())
         }
     }
 
@@ -125,15 +207,27 @@ data class DocDict(val fields : Map<String, SpecDoc>,
 
         if (fieldDoc == null)
         {
-            return Err(MissingKey(key), path)
+            return effError(MissingKey(key, path))
         }
         else
         {
             when (fieldDoc)
             {
-                is DocNumber -> return Val(fieldDoc.number, path)
-                else          -> return Err(UnexpectedType(DocType.NUMBER, docType(fieldDoc)), path)
+                is DocNumber -> return effValue(fieldDoc.number)
+                else         -> return effError(UnexpectedType(DocType.NUMBER, docType(fieldDoc), path))
             }
+        }
+    }
+
+
+    fun maybeDouble(key : String) : ValueParser<Maybe<Double>>
+    {
+        val integerParser = this.double(key)
+
+        when (integerParser)
+        {
+            is Val -> return effValue(Just(integerParser.value))
+            is Err -> return effValue(Nothing())
         }
     }
 
@@ -144,27 +238,43 @@ data class DocDict(val fields : Map<String, SpecDoc>,
 
         if (fieldDoc == null)
         {
-            return Err(MissingKey(key), path)
+            return effError(MissingKey(key, path))
         }
         else
         {
             when (fieldDoc)
             {
-                is DocBoolean -> return Val(fieldDoc.boolean, path)
-                else          -> return Err(UnexpectedType(DocType.BOOLEAN, docType(fieldDoc)), path)
+                is DocBoolean -> return effValue(fieldDoc.boolean)
+                else          -> return effError(UnexpectedType(DocType.BOOLEAN, docType(fieldDoc), path))
             }
+        }
+    }
+
+
+    fun maybeBoolean(key : String) : ValueParser<Maybe<Boolean>>
+    {
+        val booleanParser = this.boolean(key)
+
+        when (booleanParser)
+        {
+            is Val -> return effValue(Just(booleanParser.value))
+            is Err -> return effValue(Nothing())
         }
     }
 }
 
 
 data class DocList(val docs : List<SpecDoc>,
-                   override val path : DocPath) : SpecDoc(path)
+                   override val case : String?,
+                   override val path : DocPath) : SpecDoc(path, case)
 {
+
+    constructor(docs : List<SpecDoc>, path : DocPath) : this(docs, null, path)
 
     fun <T> map(f : (SpecDoc) -> ValueParser<T>) : ValueParser<List<T>>
     {
         val results = mutableListOf<T>()
+
 
         docs.forEach { doc ->
 
@@ -173,21 +283,104 @@ data class DocList(val docs : List<SpecDoc>,
             when (valueParser) {
                 is Val -> results.add(valueParser.value)
                 is Err  -> {
-                    return Err(valueParser.error, path)
+                    return effError(valueParser.error)
                 }
             }
         }
 
-        return Val(results, path)
+        return effValue(results)
     }
+
+
+    fun <T> mapIndexed(f : (SpecDoc, Int) -> ValueParser<T>) : ValueParser<List<T>>
+    {
+        val results = mutableListOf<T>()
+
+
+        docs.forEachIndexed { index, doc ->
+
+            val valueParser = f(doc, index)
+
+            when (valueParser) {
+                is Val -> results.add(valueParser.value)
+                is Err  -> {
+                    return effError(valueParser.error)
+                }
+            }
+        }
+
+        return effValue(results)
+    }
+
+
+
+    fun stringList() : ValueParser<List<String>>
+    {
+        val strings = mutableListOf<String>()
+
+        for (doc in docs)
+        {
+            when (doc)
+            {
+                is DocText -> strings.add(doc.text)
+                else       -> return effError(UnexpectedType(DocType.TEXT, docType(doc), path))
+            }
+        }
+
+        return effValue(strings)
+    }
+
+
+    inline fun <reified A : Enum<A>> enumList() : ValueParser<List<A>>
+    {
+        val enums = mutableListOf<A>()
+
+        for (doc in docs)
+        {
+            when (doc)
+            {
+                is DocText ->
+                {
+                    try {
+                        enums.add(enumValueOf<A>(doc.text))
+                    }
+                    catch (e : Exception) {
+                        return effError(UnknownEnumValue(A::class.simpleName, doc.text, path))
+                    }
+                }
+                else       -> return effError(UnexpectedType(DocType.TEXT, docType(doc), path))
+            }
+        }
+
+        return effValue(enums)
+    }
+
 
 }
 
 
-data class DocText(val text : String, override val path : DocPath) : SpecDoc(path)
-data class DocInteger(val integer : Long, override val path : DocPath) : SpecDoc(path)
-data class DocNumber(val number : Double, override val path : DocPath) : SpecDoc(path)
-data class DocBoolean(val boolean: Boolean, override val path : DocPath) : SpecDoc(path)
+data class DocText(val text : String,
+                   override val case : String?,
+                   override val path : DocPath) : SpecDoc(path, case)
+{
+    constructor(text : String, path : DocPath) : this(text, null, path)
+}
+
+data class DocNumber(val number : Double,
+                     override val case : String?,
+                     override val path : DocPath) : SpecDoc(path, case)
+{
+    constructor(number : Double, path : DocPath) : this(number, null, path)
+}
+
+
+data class DocBoolean(val boolean: Boolean,
+                      override val case : String?,
+                      override val path : DocPath) : SpecDoc(path, case)
+{
+    constructor(boolean : Boolean, path : DocPath) : this(boolean, null, path)
+}
+
 
 
 enum class DocType
@@ -195,7 +388,6 @@ enum class DocType
     DICT,
     LIST,
     TEXT,
-    INTEGER,
     NUMBER,
     BOOLEAN
 }
@@ -206,7 +398,6 @@ fun docType(doc : SpecDoc) : DocType = when (doc)
     is DocDict    -> DocType.DICT
     is DocList    -> DocType.LIST
     is DocText    -> DocType.TEXT
-    is DocInteger -> DocType.INTEGER
     is DocNumber  -> DocType.NUMBER
     is DocBoolean -> DocType.BOOLEAN
 }
@@ -262,7 +453,7 @@ data class UnexpectedType(val expected : YamlType,
                           override val path : DocPath) : DocParseError(path)
 {
     override fun toString(): String  = """
-                                       Unexpected Type\n" +
+                                       Unexpected Type
                                            expected: $expected\n
                                            found: $found\n
                                            path: $path
@@ -273,7 +464,7 @@ data class UnknownPrimType(val primValueType : PrimValueType,
                            override val path : DocPath) : DocParseError(path)
 {
     override fun toString(): String  = """
-                                       Unknown Primitive Type\n" +
+                                       Unknown Primitive Type
                                            type: $primValueType
                                            path: $path
                                        """
@@ -282,42 +473,33 @@ data class UnknownPrimType(val primValueType : PrimValueType,
 data class TypeDoesNotExist(val typeName : TypeName, override val path : DocPath) : DocParseError(path)
 {
     override fun toString(): String  = """
-                                       Type Does Not Exist\n" +
+                                       Type Does Not Exist
                                            type: $typeName
                                            path: $path
                                        """
 }
 
 
-data class DocPath(val nodes : List<DocNode>) : Monoid<DocPath>
+sealed class DocLog : Monoid<DocLog>
+{
+    override fun mappend(otherLog: DocLog): DocLog = when (this)
+    {
+        is DocLogError -> this
+        else ->           otherLog
+    }
+}
+
+data class DocLogError(val path : DocPath) : DocLog()
+
+
+class DocLogEmpty() : DocLog()
+
+
+data class DocPath(val nodes : List<DocNode>)
 {
 
     infix fun withLocation(node : DocNode) : DocPath =
-        DocPath(this.nodes.plus(node))
-
-
-    override fun mappend(path: DocPath) : DocPath = path
-
-//    {
-//        val locations = mutableListOf<DocParseLocation>()
-//
-//        for (location1 in this.locations) {
-//            when (location1) {
-//                is DocKeyLocation   -> locations.add(location1)
-//                is DocIndexLocation -> locations.add(location1)
-//            }
-//        }
-//
-//        for (location2 in path.locations) {
-//            when (location2) {
-//                is DocKeyLocation   -> locations.add(location2)
-//                is DocIndexLocation -> locations.add(location2)
-//            }
-//        }
-//
-//        return DocPath(locations)
-//    }
-
+        DocPath(nodes.plus(node))
 
     override fun toString(): String
     {

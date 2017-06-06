@@ -3,7 +3,7 @@ package lulo
 
 
 import com.kispoko.culebra.*
-
+import lulo.spec.*
 
 
 /**
@@ -41,8 +41,8 @@ object Yaml
 
     fun parseSpecAuthor(yamlValue : YamlValue) : Parser<SpecAuthor> = when (yamlValue)
     {
-        is YamlText -> result(SpecAuthor(yamlValue.text))
-        else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+        is YamlDict -> parserApply(::SpecAuthor, yamlValue.text("name"))
+        else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
 
     // Specification > Authors
@@ -51,7 +51,7 @@ object Yaml
     fun parseAuthors(yamlValue : YamlValue) : Parser<List<SpecAuthor>> = when (yamlValue)
     {
         is YamlArray -> yamlValue.map { parseSpecAuthor(it) }
-        else         -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+        else         -> error(UnexpectedTypeFound(YamlType.ARRAY, yamlType(yamlValue)))
     }
 
     // Specification > Description
@@ -63,6 +63,7 @@ object Yaml
                                    yamlValue.maybeText("overview_md"))
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
+
 
     // LULO TYPE
     // -----------------------------------------------------------------------------------------
@@ -76,10 +77,13 @@ object Yaml
             yamlValue.at("type") ap {
                 when (it) {
                     is YamlText -> {
-                        if (it.text == "product")
-                            parseProductType(yamlValue)
-                        else
-                            parseSumType(yamlValue)
+                        when (it.text)
+                        {
+                            "product" -> parseProductType(yamlValue)
+                            "sum"     -> parseSumType(yamlValue)
+                            "simple"  -> parseSimpleType(yamlValue)
+                            else      -> error(UnexpectedStringValue(it.text))
+                        }
                     }
                     else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
                 }
@@ -102,11 +106,12 @@ object Yaml
 
     fun parseTypeData(yamlValue : YamlValue) : Parser<TypeData> = when (yamlValue)
     {
-        is YamlDict -> parserApply4(::TypeData,
+        is YamlDict -> parserApply5(::TypeData,
                                     yamlValue.at("name") ap { parseTypeName(it) },
                                     yamlValue.text("label"),
                                     yamlValue.maybeText("description"),
-                                    yamlValue.maybeText("group"))
+                                    yamlValue.maybeText("group"),
+                                    yamlValue.maybeAt("constraints") ap { x -> parseConstraintNames(x) })
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
 
@@ -117,6 +122,23 @@ object Yaml
     {
         is YamlText -> result(TypeName(yamlValue.text))
         else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+    }
+
+    // Type > Simple
+    // -----------------------------------------------------------------------------------------
+
+    fun parseSimpleType(yamlValue : YamlValue) : Parser<LuloType> = when (yamlValue)
+    {
+        is YamlDict -> parserApply2(::LuloType,
+                                    parseTypeData(yamlValue),
+                                    parseSimpleObjectType(yamlValue))
+        else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
+    }
+
+    fun parseSimpleObjectType(yamlValue : YamlValue) : Parser<ObjectType> = when (yamlValue)
+    {
+        is YamlDict -> parserApply(::Simple, yamlValue.text("base_type"))
+        else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
 
     // Type > Product
@@ -163,12 +185,11 @@ object Yaml
 
     fun parseField(yamlValue : YamlValue) : Parser<Field> = when (yamlValue)
     {
-        is YamlDict -> parserApply6(::Field,
+        is YamlDict -> parserApply5(::Field,
                                     yamlValue.at("name") ap { x -> parseFieldName(x) },
                                     yamlValue.at("presence") ap { x -> parseFieldPresence(x) },
                                     yamlValue.maybeAt("description") ap { x -> parseFieldDescription(x) },
                                     parseValueType(yamlValue),
-                                    yamlValue.maybeAt("constraints") ap { x -> parseConstraintNames(x) },
                                     yamlValue.maybeAt("default_value") ap { x -> parseFieldDefaultValue(x) })
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
@@ -243,8 +264,8 @@ object Yaml
     fun parseCase(yamlValue : YamlValue) : Parser<Case> = when (yamlValue)
     {
         is YamlDict -> parserApply2(::Case,
-                                    yamlValue.at("description") ap { x -> parseCaseDescription(x) },
-                                    parseValueType(yamlValue))
+                                    parseValueType(yamlValue),
+                                    yamlValue.maybeAt("description") ap { x -> parseCaseDescription(x) })
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
 
@@ -257,23 +278,21 @@ object Yaml
         else         -> error(UnexpectedTypeFound(YamlType.ARRAY, yamlType(yamlValue)))
     }
 
-    // Case > Name
-    // -----------------------------------------------------------------------------------------
-
-    fun parseCaseName(yamlValue : YamlValue) : Parser<CaseName> = when (yamlValue)
-    {
-        is YamlText -> result(CaseName(yamlValue.text))
-        else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
-    }
-
     // Case > Description
     // -----------------------------------------------------------------------------------------
 
-    fun parseCaseDescription(yamlValue : YamlValue) : Parser<CaseDescription> = when (yamlValue)
+    fun parseCaseDescription(yamlValue : YamlValue?) : Parser<CaseDescription?>
     {
-        is YamlText -> result(CaseDescription(yamlValue.text))
-        else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+        if (yamlValue == null)
+            return result(null)
+
+        when (yamlValue)
+        {
+            is YamlText -> return result(CaseDescription(yamlValue.text))
+            else        -> return error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+        }
     }
+
 
     // VALUE TYPE
     // -----------------------------------------------------------------------------------------
@@ -315,7 +334,7 @@ object Yaml
     // -----------------------------------------------------------------------------------------
 
     fun parseCustomType(typeString : String) : Parser<ValueType> =
-            result(Custom(CustomValueType(typeString)))
+            result(Custom(TypeName(typeString)))
 
     // Value Type > Collection
     // -----------------------------------------------------------------------------------------
@@ -349,7 +368,7 @@ object Yaml
     // -----------------------------------------------------------------------------------------
 
     fun parseCustomList(typeString : String) : Parser<ValueType> =
-        result(CustomList(CustomValueType(typeString)))
+        result(CustomList(TypeName(typeString)))
 
     // CONSTRAINT
     // -----------------------------------------------------------------------------------------
@@ -401,8 +420,8 @@ object Yaml
     fun parseConstraintData(yamlValue : YamlValue) : Parser<ConstraintData> = when (yamlValue)
     {
         is YamlDict -> parserApply2(::ConstraintData,
-                                    parseConstraintName(yamlValue),
-                                    parseConstraintDescription(yamlValue))
+                                    yamlValue.at("name") ap { parseConstraintName(it) },
+                                    yamlValue.maybeAt("description") ap { parseConstraintDescription(it) } )
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
 
@@ -418,10 +437,16 @@ object Yaml
     // Constraint > Data > Description
     // -----------------------------------------------------------------------------------------
 
-    fun parseConstraintDescription(yamlValue : YamlValue) : Parser<ConstraintDescription> = when (yamlValue)
+    fun parseConstraintDescription(yamlValue : YamlValue?) : Parser<ConstraintDescription?>
     {
-        is YamlText -> result(ConstraintDescription(yamlValue.text))
-        else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+        if (yamlValue == null)
+            return result(null)
+
+        when (yamlValue)
+        {
+            is YamlText -> return result(ConstraintDescription(yamlValue.text))
+            else        -> return error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+        }
     }
 
     // VALUE CONSTRAINT
