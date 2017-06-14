@@ -98,7 +98,7 @@ data class DocDict(val fields : Map<String,SpecDoc>,
                         return effValue(enumValueOf<A>(fieldDoc.text))
                     }
                     catch (e : Exception) {
-                        return effError(UnknownEnumValue(A::class.simpleName, fieldDoc.text, path))
+                        return effError(UnexpectedValue(A::class.simpleName, fieldDoc.text, path))
                     }
                 }
                 else       -> return effError(UnexpectedType(DocType.TEXT, docType(fieldDoc), path))
@@ -271,7 +271,8 @@ data class DocList(val docs : List<SpecDoc>,
 
     constructor(docs : List<SpecDoc>, path : DocPath) : this(docs, null, path)
 
-    fun <T> map(f : (SpecDoc) -> ValueParser<T>) : ValueParser<List<T>>
+
+    fun <T> map(f : (SpecDoc) -> ValueParser<T>) : ValueParser<MutableList<T>>
     {
         val results = mutableListOf<T>()
 
@@ -292,7 +293,28 @@ data class DocList(val docs : List<SpecDoc>,
     }
 
 
-    fun <T> mapIndexed(f : (SpecDoc, Int) -> ValueParser<T>) : ValueParser<List<T>>
+    fun <T> mapMut(f : (SpecDoc) -> ValueParser<T>) : ValueParser<MutableList<T>>
+    {
+        val results = mutableListOf<T>()
+
+
+        docs.forEach { doc ->
+
+            val valueParser = f(doc)
+
+            when (valueParser) {
+                is Val -> results.add(valueParser.value)
+                is Err  -> {
+                    return effError(valueParser.error)
+                }
+            }
+        }
+
+        return effValue(results)
+    }
+
+
+    fun <T> mapIndexed(f : (SpecDoc, Int) -> ValueParser<T>) : ValueParser<MutableList<T>>
     {
         val results = mutableListOf<T>()
 
@@ -312,6 +334,66 @@ data class DocList(val docs : List<SpecDoc>,
         return effValue(results)
     }
 
+
+    fun <T> mapIndexedMut(f : (SpecDoc, Int) -> ValueParser<T>) : ValueParser<MutableList<T>>
+    {
+        val results = mutableListOf<T>()
+
+
+        docs.forEachIndexed { index, doc ->
+
+            val valueParser = f(doc, index)
+
+            when (valueParser) {
+                is Val -> results.add(valueParser.value)
+                is Err  -> {
+                    return effError(valueParser.error)
+                }
+            }
+        }
+
+        return effValue(results)
+    }
+
+
+    fun <T> mapSet(f : (SpecDoc) -> ValueParser<T>) : ValueParser<Set<T>>
+    {
+        val results = mutableSetOf<T>()
+
+        docs.forEach { doc ->
+
+            val valueParser = f(doc)
+
+            when (valueParser) {
+                is Val -> results.add(valueParser.value)
+                is Err  -> {
+                    return effError(valueParser.error)
+                }
+            }
+        }
+
+        return effValue(results)
+    }
+
+
+    fun <T> mapSetMut(f : (SpecDoc) -> ValueParser<T>) : ValueParser<MutableSet<T>>
+    {
+        val results = mutableSetOf<T>()
+
+        docs.forEach { doc ->
+
+            val valueParser = f(doc)
+
+            when (valueParser) {
+                is Val -> results.add(valueParser.value)
+                is Err  -> {
+                    return effError(valueParser.error)
+                }
+            }
+        }
+
+        return effValue(results)
+    }
 
 
     fun stringList() : ValueParser<List<String>>
@@ -345,7 +427,7 @@ data class DocList(val docs : List<SpecDoc>,
                         enums.add(enumValueOf<A>(doc.text))
                     }
                     catch (e : Exception) {
-                        return effError(UnknownEnumValue(A::class.simpleName, doc.text, path))
+                        return effError(UnexpectedValue(A::class.simpleName, doc.text, path))
                     }
                 }
                 else       -> return effError(UnexpectedType(DocType.TEXT, docType(doc), path))
@@ -492,7 +574,7 @@ sealed class DocLog : Monoid<DocLog>
 data class DocLogError(val path : DocPath) : DocLog()
 
 
-class DocLogEmpty() : DocLog()
+class DocLogEmpty : DocLog()
 
 
 data class DocPath(val nodes : List<DocNode>)
@@ -505,11 +587,8 @@ data class DocPath(val nodes : List<DocNode>)
     {
         var pathString = ""
 
-        var sep = ""
         for (node in this.nodes) {
-            pathString += sep
             pathString += node.toString()
-            sep = " -> "
         }
 
         return pathString;
@@ -522,17 +601,14 @@ sealed class DocNode
 
 data class DocKeyNode(val key : String) : DocNode()
 {
-    override fun toString(): String
-    {
-        return "[key: $key]"
-    }
+    override fun toString(): String = "." + key
 }
 
 data class DocIndexNode(val index : Int) : DocNode()
 {
     override fun toString(): String
     {
-        return "[index: $index]"
+        return "[$index]"
     }
 }
 

@@ -64,7 +64,7 @@ data class Spec(val version : SpecVersion,
         {
             is StringResult ->
             {
-                val rootType = specType(this.rootTypeName, specDependencies.plus(this))// typeByName[this.rootTypeName]
+                val rootType = specType(this.rootTypeName, specDependencies.plus(this))
                 if (rootType == null)
                     return docError(listOf(TypeDoesNotExist(this.rootTypeName, path)))
                 else

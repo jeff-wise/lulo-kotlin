@@ -93,7 +93,7 @@ private fun sumTypeParser(yamlValue : YamlValue,
                     is YamlText ->
                     {
                         val caseTypeName = TypeName(typeYamlValue.text)
-                        val caseType = specType(caseTypeName, listOf(spec))
+                        val caseType = specType(caseTypeName, specDependencies.plus(spec))
 
                         if (caseType == null)
                         {
@@ -154,7 +154,7 @@ private fun simpleTypeParser(simpleType : Simple,
     else if (typeKind == ValueKind.CUSTOM)
     {
         val baseTypeName = TypeName(simpleType.baseTypeName)
-        val baseType = specType(baseTypeName, listOf(spec))
+        val baseType = specType(baseTypeName, specDependencies.plus(spec))
 
         if (baseType == null)
             return docError(listOf(TypeDoesNotExist(baseTypeName, path)))
@@ -247,7 +247,7 @@ private fun customValueParser(customTypeName : TypeName,
                               spec : Spec,
                               specDependencies: List<Spec>) : DocParse
 {
-    val customType = specType(customTypeName, listOf(spec))
+    val customType = specType(customTypeName, specDependencies.plus(spec))
 
     if (customType == null)
         return docError(listOf(TypeDoesNotExist(customTypeName, path)))
@@ -267,7 +267,7 @@ private fun customListValueParser(customTypeName : TypeName,
 {
     is YamlArray ->
     {
-        val customType = specType(customTypeName, listOf(spec))
+        val customType = specType(customTypeName, specDependencies.plus(spec))
 
         if (customType == null)
         {

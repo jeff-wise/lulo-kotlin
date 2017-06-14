@@ -50,15 +50,15 @@ data class UnknownCase(val caseName : String?, override val path : DocPath) : Va
             """
 }
 
-data class UnknownEnumValue(val enumName : String?,
-                            val enumValue : String,
-                            override val path : DocPath) : ValueError(path)
+data class UnexpectedValue(val typeName : String?,
+                           val value : String,
+                           override val path : DocPath) : ValueError(path)
 {
     override fun toString(): String  =
             """
             Unknown EnumValue
-                Enum: $enumName
-                Value: $enumValue
+                Of Type: $typeName
+                Value: $value
                 Path: $path
             """
 }
