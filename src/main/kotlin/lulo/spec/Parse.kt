@@ -9,6 +9,8 @@ import lulo.document.*
 
 
 
+
+// TODO pass in lulotype, so we have complete type info for debugging
 fun customTypeParser(type : ObjectType,
                      yamlValue : YamlValue,
                      case : String?,
@@ -16,10 +18,10 @@ fun customTypeParser(type : ObjectType,
                      spec : Spec,
                      specDependencies: List<Spec>) : DocParse = when (type)
 {
-    is Product -> productTypeParser(type, yamlValue, case, path, spec, specDependencies)
-    is Sum     -> sumTypeParser(yamlValue, path, spec, specDependencies)
-    is Simple  -> simpleTypeParser(type, yamlValue, case, path, spec, specDependencies)
-    else       -> docError(listOf(UnknownKind(path)))
+    is Product   -> productTypeParser(type, yamlValue, case, path, spec, specDependencies)
+    is Sum       -> sumTypeParser(type, yamlValue, path, spec, specDependencies)
+    is Primitive -> simpleTypeParser(type, yamlValue, case, path, spec, specDependencies)
+    else         -> docError(listOf(UnknownKind(path)))
 }
 
 
@@ -75,7 +77,8 @@ private fun productTypeParser(productType : Product,
 }
 
 
-private fun sumTypeParser(yamlValue : YamlValue,
+private fun sumTypeParser(sumType : Sum,
+                          yamlValue : YamlValue,
                           path : DocPath,
                           spec : Spec,
                           specDependencies : List<Spec>) : DocParse = when (yamlValue)
@@ -98,6 +101,10 @@ private fun sumTypeParser(yamlValue : YamlValue,
                         if (caseType == null)
                         {
                             docError(listOf(TypeDoesNotExist(caseTypeName, path)))
+                        }
+                        else if (!sumType.hasCase(caseTypeName))
+                        {
+                            docError(listOf(InvalidCaseType(caseTypeName, path)))
                         }
                         else {
                             val caseYamlValueParser = yamlValue.at(caseTypeName.name)
@@ -138,7 +145,7 @@ private fun sumTypeParser(yamlValue : YamlValue,
 }
 
 
-private fun simpleTypeParser(simpleType : Simple,
+private fun simpleTypeParser(simpleType : Primitive,
                              yamlValue : YamlValue,
                              case : String?,
                              path : DocPath,

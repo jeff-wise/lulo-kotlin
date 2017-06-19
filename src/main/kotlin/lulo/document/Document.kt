@@ -5,6 +5,7 @@ package lulo.document
 import com.kispoko.culebra.*
 import effect.*
 import lulo.spec.PrimValueType
+import lulo.spec.Sum
 import lulo.spec.TypeName
 import lulo.value.*
 import lulo.value.UnexpectedType
@@ -76,6 +77,18 @@ data class DocDict(val fields : Map<String,SpecDoc>,
                 is DocList -> return effValue(fieldDoc)
                 else       -> return effError(UnexpectedType(DocType.LIST, docType(fieldDoc), path))
             }
+        }
+    }
+
+
+    fun maybeList(key : String) : ValueParser<Maybe<DocList>>
+    {
+        val listParser = this.list(key)
+
+        when (listParser)
+        {
+            is Val -> return effValue(Just(listParser.value))
+            is Err -> return effValue(Nothing())
         }
     }
 
@@ -272,7 +285,7 @@ data class DocList(val docs : List<SpecDoc>,
     constructor(docs : List<SpecDoc>, path : DocPath) : this(docs, null, path)
 
 
-    fun <T> map(f : (SpecDoc) -> ValueParser<T>) : ValueParser<MutableList<T>>
+    fun <T> map(f : (SpecDoc) -> ValueParser<T>) : ValueParser<List<T>>
     {
         val results = mutableListOf<T>()
 
@@ -517,6 +530,17 @@ data class UnknownKind(override val path : DocPath) : DocParseError(path)
 data class MissingField(val fieldName : String, override val path : DocPath) : DocParseError(path)
 {
     override fun toString(): String  = "Missing Field\n    field: $fieldName\n    path: $path"
+}
+
+data class InvalidCaseType(val caseTypeName : TypeName,
+                           override val path : DocPath) : DocParseError(path)
+{
+    override fun toString(): String  =
+            """
+            Invalid Case Type:
+                Case Type: ${caseTypeName.name}
+            """
+
 }
 
 data class YamlError(val yamlError : ParseError, override val path : DocPath) : DocParseError(path)

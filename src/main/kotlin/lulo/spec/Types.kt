@@ -19,7 +19,7 @@ import lulo.document.*
  * Specification
  */
 data class Spec(val version : SpecVersion,
-                val authors : List<SpecAuthor>,
+                val metadata : SpecMetadata,
                 val description : SpecDescription?,
                 val rootTypeName : TypeName,
                 val types : List<LuloType>,
@@ -53,6 +53,9 @@ data class Spec(val version : SpecVersion,
         }
         return null
     }
+
+
+    fun parseDocument(yamlString : String) : DocParse = this.parseDocument(yamlString, listOf())
 
 
     fun parseDocument(yamlString : String, specDependencies: List<Spec>) : DocParse
@@ -89,10 +92,22 @@ data class Spec(val version : SpecVersion,
 data class SpecVersion(val versionString: String)
 
 
-// Specification > Author
+// Specification > Metadata
 // -----------------------------------------------------------------------------
 
-data class SpecAuthor(val name: String)
+data class SpecMetadata(val name : SpecName, val authors : List<SpecAuthor>)
+
+
+// Specification > Metadata > Name
+// -----------------------------------------------------------------------------
+
+data class SpecName(val value : String)
+
+
+// Specification > Metadata > Author
+// -----------------------------------------------------------------------------
+
+data class SpecAuthor(val name : String)
 
 
 // Specification > Description
@@ -139,12 +154,28 @@ data class Product(val fields : List<Field>) : ObjectType()
 // -----------------------------------------------------------------------------
 
 data class Sum(val cases : List<Case>) : ObjectType()
+{
+
+    fun hasCase(caseTypeName : TypeName) : Boolean
+    {
+        for (case in this.cases)
+        {
+            val caseType = case.type
+            when (caseType) {
+                is Custom -> if (caseType.name == caseTypeName) return true
+            }
+        }
+
+        return false
+    }
+
+}
 
 
-// Type > Object Type > Simple
+// Type > Object Type > Primitive
 // -----------------------------------------------------------------------------
 
-data class Simple(val baseTypeName : String) : ObjectType()
+data class Primitive(val baseTypeName : String) : ObjectType()
 
 
 // FIELD
@@ -186,7 +217,7 @@ data class FieldDefaultValue(val value : String)
 
 // CASE
 // -----------------------------------------------------------------------------
-
+// TODO case types can only be custom??
 data class Case(val type : ValueType,
                 val description : CaseDescription?)
 

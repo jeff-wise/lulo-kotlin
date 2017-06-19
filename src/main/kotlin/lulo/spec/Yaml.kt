@@ -1,9 +1,8 @@
 
-package lulo
+package lulo.spec
 
 
 import com.kispoko.culebra.*
-import lulo.spec.*
 
 
 /**
@@ -19,7 +18,7 @@ object Yaml
     {
         is YamlDict -> parserApply6(::Spec,
                                     yamlValue.at("version") ap { x -> parseSpecVersion(x) },
-                                    yamlValue.at("authors") ap { x -> parseAuthors(x) },
+                                    yamlValue.at("metadata") ap { parseSpecMetadata(it) },
                                     yamlValue.at("description") ap { x -> parseSpecDescription(x) },
                                     yamlValue.at("root_type") ap { x -> parseTypeName(x) },
                                     yamlValue.at("types") ap { x -> parseTypes(x) },
@@ -36,7 +35,27 @@ object Yaml
         else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
     }
 
-    // Specification > Author
+    // Specification > Metadata
+    // -----------------------------------------------------------------------------------------
+
+    fun parseSpecMetadata(yamlValue : YamlValue) : Parser<SpecMetadata> = when (yamlValue)
+    {
+        is YamlDict -> parserApply2(::SpecMetadata,
+                                    yamlValue.at("name") ap { parseSpecName(it) },
+                                    yamlValue.at("authors") ap { parseAuthors(it) })
+        else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+    }
+
+    // Specification > Metadata > Name
+    // -----------------------------------------------------------------------------------------
+
+    fun parseSpecName(yamlValue : YamlValue) : Parser<SpecName> = when (yamlValue)
+    {
+        is YamlText -> result(SpecName(yamlValue.text))
+        else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
+    }
+
+    // Specification > Metadata > Author
     // -----------------------------------------------------------------------------------------
 
     fun parseSpecAuthor(yamlValue : YamlValue) : Parser<SpecAuthor> = when (yamlValue)
@@ -45,7 +64,7 @@ object Yaml
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
 
-    // Specification > Authors
+    // Specification > Metadata > Authors
     // -----------------------------------------------------------------------------------------
 
     fun parseAuthors(yamlValue : YamlValue) : Parser<List<SpecAuthor>> = when (yamlValue)
@@ -79,10 +98,10 @@ object Yaml
                     is YamlText -> {
                         when (it.text)
                         {
-                            "product" -> parseProductType(yamlValue)
-                            "sum"     -> parseSumType(yamlValue)
-                            "simple"  -> parseSimpleType(yamlValue)
-                            else      -> error(UnexpectedStringValue(it.text))
+                            "product"   -> parseProductType(yamlValue)
+                            "sum"       -> parseSumType(yamlValue)
+                            "primitive" -> parseSimpleType(yamlValue)
+                            else        -> error(UnexpectedStringValue(it.text))
                         }
                     }
                     else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
@@ -124,7 +143,7 @@ object Yaml
         else        -> error(UnexpectedTypeFound(YamlType.TEXT, yamlType(yamlValue)))
     }
 
-    // Type > Simple
+    // Type > Primitive
     // -----------------------------------------------------------------------------------------
 
     fun parseSimpleType(yamlValue : YamlValue) : Parser<LuloType> = when (yamlValue)
@@ -137,7 +156,7 @@ object Yaml
 
     fun parseSimpleObjectType(yamlValue : YamlValue) : Parser<ObjectType> = when (yamlValue)
     {
-        is YamlDict -> parserApply(::Simple, yamlValue.text("base_type"))
+        is YamlDict -> parserApply(::Primitive, yamlValue.text("base_type"))
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
 

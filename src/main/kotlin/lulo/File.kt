@@ -8,6 +8,7 @@ import com.kispoko.culebra.StringErrors
 import com.kispoko.culebra.StringResult
 import com.kispoko.culebra.YamlString
 import lulo.spec.Spec
+import lulo.spec.Yaml
 import java.io.InputStream
 
 
