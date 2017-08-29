@@ -39,7 +39,7 @@ val silaDocObject =
                     "uses_magic" to DocBoolean(true,
                                                DocPath(listOf(DocKeyNode("class"), DocKeyNode("uses_magic"))))
                 ),
-                null,
+                listOf(),
                 DocPath(listOf(DocKeyNode("class")))
             ),
             "inventory" to DocList(
@@ -53,7 +53,7 @@ val silaDocObject =
                                                                       DocIndexNode(0),
                                                                       DocKeyNode("damage"))))
                         ),
-                        "weapon",
+                        listOf("weapon"),
                         DocPath(listOf(DocKeyNode("inventory"), DocIndexNode(0)))
                     ),
                     DocDict(
@@ -65,14 +65,14 @@ val silaDocObject =
                                                                      DocIndexNode(1),
                                                                      DocKeyNode("price"))))
                         ),
-                        "potion",
+                        listOf("potion"),
                         DocPath(listOf(DocKeyNode("inventory"), DocIndexNode(1)))
                     )
                 ),
                 DocPath(listOf(DocKeyNode("inventory")))
             )
         ),
-        null,
+        listOf(),
         DocPath(listOf())
     )
 

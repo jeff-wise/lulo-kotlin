@@ -101,6 +101,7 @@ object Yaml
                             "product"   -> parseProductType(yamlValue)
                             "sum"       -> parseSumType(yamlValue)
                             "primitive" -> parseSimpleType(yamlValue)
+                            "symbol"    -> parseSymbolType(yamlValue)
                             else        -> error(UnexpectedStringValue(it.text))
                         }
                     }
@@ -195,6 +196,25 @@ object Yaml
                                    yamlValue.at("cases") ap { x -> parseCases(x) })
         else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
     }
+
+
+    // Type > Symbol
+    // -----------------------------------------------------------------------------------------
+
+    fun parseSymbolType(yamlValue : YamlValue) : Parser<LuloType> = when (yamlValue)
+    {
+        is YamlDict -> parserApply2(::LuloType,
+                                    parseTypeData(yamlValue),
+                                    parseSymbolObjectType(yamlValue))
+        else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
+    }
+
+    fun parseSymbolObjectType(yamlValue : YamlValue) : Parser<ObjectType> = when (yamlValue)
+    {
+        is YamlDict -> parserApply(::Symbol, yamlValue.text("symbol"))
+        else        -> error(UnexpectedTypeFound(YamlType.DICT, yamlType(yamlValue)))
+    }
+
 
     // FIELD
     // -----------------------------------------------------------------------------------------

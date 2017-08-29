@@ -2,7 +2,7 @@
 rootProject.name = 'lulo-jvm'
 
 
-includeBuild '../../culebra'
-includeBuild '../../kotlin-effect'
+//includeBuild '../../culebra'
+//includeBuild '../../kotlin-effect'
 
 

@@ -28,7 +28,5 @@ build.dependsOn fatJar
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
-    compile 'com.kispoko:culebra:0.7'
-    compile 'com.kispoko:effect:0.7'
     testCompile 'io.kotlintest:kotlintest:2.0.2'
 }

@@ -55,10 +55,10 @@ data class Spec(val version : SpecVersion,
     }
 
 
-    fun parseDocument(yamlString : String) : DocParse = this.parseDocument(yamlString, listOf())
+    fun parseDocument(yamlString : String) : DocParser = this.parseDocument(yamlString, listOf())
 
 
-    fun parseDocument(yamlString : String, specDependencies: List<Spec>) : DocParse
+    fun parseDocument(yamlString : String, specDependencies: List<Spec>) : DocParser
     {
         val stringParse = YamlString.parse(yamlString)
         val path = DocPath(listOf())
@@ -71,7 +71,7 @@ data class Spec(val version : SpecVersion,
                 if (rootType == null)
                     return docError(listOf(TypeDoesNotExist(this.rootTypeName, path)))
                 else
-                    return customTypeParser(rootType.type, stringParse.value, null, path, this, specDependencies)
+                    return customTypeParser(rootType.type, stringParse.value, listOf(), path, this, specDependencies)
             }
             is StringErrors ->
             {
@@ -119,7 +119,7 @@ data class SpecDescription(val overview_md: String?)
 // LULO TYPE
 // -----------------------------------------------------------------------------
 
-data class LuloType(val data: TypeData, val type : ObjectType)
+data class LuloType(val data : TypeData, val type : ObjectType)
 
 
 // Type > Data
@@ -170,6 +170,12 @@ data class Sum(val cases : List<Case>) : ObjectType()
     }
 
 }
+
+
+// Type > Object Type > Symbol
+// -----------------------------------------------------------------------------
+
+data class Symbol(val symbol : String) : ObjectType()
 
 
 // Type > Object Type > Primitive

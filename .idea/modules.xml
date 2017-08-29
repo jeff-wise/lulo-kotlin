@@ -2,12 +2,6 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/379303190/culebra.iml" filepath="$PROJECT_DIR$/.idea/modules/379303190/culebra.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/379303190/culebra_main.iml" filepath="$PROJECT_DIR$/.idea/modules/379303190/culebra_main.iml" group="culebra" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/379303190/culebra_test.iml" filepath="$PROJECT_DIR$/.idea/modules/379303190/culebra_test.iml" group="culebra" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/-958655443/effect.iml" filepath="$PROJECT_DIR$/.idea/modules/-958655443/effect.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/-958655443/effect_main.iml" filepath="$PROJECT_DIR$/.idea/modules/-958655443/effect_main.iml" group="effect" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/-958655443/effect_test.iml" filepath="$PROJECT_DIR$/.idea/modules/-958655443/effect_test.iml" group="effect" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/lulo-jvm.iml" filepath="$PROJECT_DIR$/.idea/modules/lulo-jvm.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/lulo-jvm_main.iml" filepath="$PROJECT_DIR$/.idea/modules/lulo-jvm_main.iml" group="lulo-jvm" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/lulo-jvm_test.iml" filepath="$PROJECT_DIR$/.idea/modules/lulo-jvm_test.iml" group="lulo-jvm" />
