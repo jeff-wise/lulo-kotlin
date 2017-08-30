@@ -46,24 +46,32 @@ val silaDocObject =
                 listOf(
                     DocDict(
                         mapOf(
-                            "name" to DocText("Staff", DocPath(listOf(DocKeyNode("inventory"),
-                                                                      DocIndexNode(0),
-                                                                      DocKeyNode("name")))),
-                            "damage" to DocNumber(10.0, DocPath(listOf(DocKeyNode("inventory"),
-                                                                      DocIndexNode(0),
-                                                                      DocKeyNode("damage"))))
+                            "name" to DocText("Staff",
+                                              listOf("weapon"),
+                                              DocPath(listOf(DocKeyNode("inventory"),
+                                                             DocIndexNode(0),
+                                                             DocKeyNode("name")))),
+                            "damage" to DocNumber(10.0,
+                                                  listOf("weapon"),
+                                                  DocPath(listOf(DocKeyNode("inventory"),
+                                                                 DocIndexNode(0),
+                                                                 DocKeyNode("damage"))))
                         ),
                         listOf("weapon"),
                         DocPath(listOf(DocKeyNode("inventory"), DocIndexNode(0)))
                     ),
                     DocDict(
                         mapOf(
-                            "name" to DocText("Healing", DocPath(listOf(DocKeyNode("inventory"),
-                                                                        DocIndexNode(1),
-                                                                        DocKeyNode("name")))),
-                            "price" to DocNumber(7.5, DocPath(listOf(DocKeyNode("inventory"),
-                                                                     DocIndexNode(1),
-                                                                     DocKeyNode("price"))))
+                            "name" to DocText("Healing",
+                                              listOf("potion"),
+                                              DocPath(listOf(DocKeyNode("inventory"),
+                                                             DocIndexNode(1),
+                                                             DocKeyNode("name")))),
+                            "price" to DocNumber(7.5,
+                                                listOf("potion"),
+                                                DocPath(listOf(DocKeyNode("inventory"),
+                                                               DocIndexNode(1),
+                                                               DocKeyNode("price"))))
                         ),
                         listOf("potion"),
                         DocPath(listOf(DocKeyNode("inventory"), DocIndexNode(1)))

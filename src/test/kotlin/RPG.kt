@@ -1,5 +1,6 @@
 
 import data.rpg.*
+import effect.Eff
 import effect.Err
 import effect.Identity
 import effect.Val
@@ -7,10 +8,10 @@ import io.kotlintest.matchers.beOfType
 import io.kotlintest.matchers.should
 import io.kotlintest.matchers.shouldBe
 import io.kotlintest.specs.ShouldSpec
+import lulo.*
 import lulo.document.*
-import lulo.spec.TypeName
+import lulo.schema.TypeName
 import lulo.value.ValueError
-import lulo.File as LuloFile
 
 
 
@@ -24,8 +25,13 @@ class RPG : ShouldSpec()
 
         "Specification Parsing" {
 
-            should("Parses RPG spec without errors") {
-                LuloFile.specification(rpgSpecYaml) shouldBe rpgSpecObject
+            should("Parses RPG schema without errors") {
+                val schema = parseSchema(rpgSchemaYaml)
+                when (schema) {
+                    is SchemaParseValue -> schema.schema shouldBe rpgSchemaObject
+                    is SchemaParseError -> schema should beOfType<SchemaParseValue>()
+                }
+
             }
 
         }
@@ -33,41 +39,58 @@ class RPG : ShouldSpec()
 
         "Document Parsing" {
 
-            should("Parses RPG document using spec without errors") {
-                val spec = LuloFile.specification(rpgSpecYaml)
-                val specDoc = spec?.document(silaDocYaml)
-                specDoc shouldBe silaDocObject
+            should("Parses RPG document using schema without errors") {
+                val schema = parseSchema(rpgSchemaYaml)
+                when (schema) {
+                    is SchemaParseValue -> {
+                        val schemaDoc = schema.schema.document(silaDocYaml)
+                        schemaDoc shouldBe silaDocObject
+                    }
+                    is SchemaParseError -> schema should beOfType<SchemaParseValue>()
+                }
             }
 
             should("Should give Missing Field 'name' error for weapon") {
-                val spec = LuloFile.specification(rpgSpecYaml)
-                val specDocParse = spec?.parseDocument(silaMissingWeaponNameDocYaml)
-                when (specDocParse) {
-                    is Val -> specDocParse should beOfType<Err<ValueError,Identity,Character>>()
-                    is Err ->
-                    {
-                        val errors = listOf(MissingField("name",
-                                                         DocPath(listOf(DocKeyNode("inventory"),
-                                                                        DocIndexNode(0)))))
-                        specDocParse.error shouldBe errors
+                val schema = parseSchema(rpgSchemaYaml)
+
+                when (schema) {
+                    is SchemaParseValue -> {
+                        val schemaDocParser = schema.schema.parseDocument(silaMissingWeaponNameDocYaml)
+                        when (schemaDocParser) {
+                            is Val ->
+                                schemaDocParser should beOfType<Err<List<DocParseError>,Identity,SchemaDoc>>()
+                            is Err -> {
+                                val errors = listOf(MissingField("name",
+                                                             DocPath(listOf(DocKeyNode("inventory"),
+                                                                     DocIndexNode(0)))))
+                                schemaDocParser.error shouldBe errors
+                            }
+                        }
                     }
                 }
             }
 
             should("Should give Invalid Case Type error") {
-                val spec = LuloFile.specification(rpgSpecYaml)
-                val specDocParse = spec?.parseDocument(silaWrongCaseTypeDocYaml)
-                when (specDocParse) {
-                    is Val -> specDocParse should beOfType<Err<ValueError,Identity,Character>>()
-                    is Err ->
-                    {
-                        val errors = listOf(InvalidCaseType(TypeName("race"),
-                                                            DocPath(listOf(DocKeyNode("inventory"),
-                                                                           DocIndexNode(0)))))
-                        specDocParse.error shouldBe errors
+                val schema = parseSchema(rpgSchemaYaml)
+                when (schema) {
+                    is SchemaParseValue -> {
+                        val schemaDocParser = schema.schema.parseDocument(silaWrongCaseTypeDocYaml)
+                        when (schemaDocParser) {
+                            is Val ->
+                                schemaDocParser should beOfType<Err<List<DocParseError>,Identity,SchemaDoc>>()
+                            is Err -> {
+
+                                val errors = listOf(InvalidCaseType(TypeName("race"),
+                                                        DocPath(listOf(DocKeyNode("inventory"),
+                                                                DocIndexNode(0)))))
+                                schemaDocParser.error shouldBe errors
+                            }
+                        }
                     }
                 }
+
             }
+
 
         }
 
@@ -75,16 +98,25 @@ class RPG : ShouldSpec()
         "Value Parsing" {
 
             should("Parses RPG character from document without errors") {
-                val spec = LuloFile.specification(rpgSpecYaml)
-                val specDoc = spec?.document(silaDocYaml)
-                if (specDoc != null)
-                {
-                    val silaParser = Character.fromDocument(specDoc)
-                    when (silaParser)
-                    {
-                        is Val -> silaParser.value shouldBe silaValue
-                        is Err -> silaParser should beOfType<Val<ValueError,Identity,Character>>()
+                val schema = parseSchema(rpgSchemaYaml)
+                when (schema) {
+                    is SchemaParseValue -> {
+                        val schemaDocParser = schema.schema.parseDocument(silaDocYaml)
+                        when (schemaDocParser)
+                        {
+                            is Val ->
+                            {
+                                val silaParser = Character.fromDocument(schemaDocParser.value)
+                                when (silaParser)
+                                {
+                                    is Val -> silaParser.value shouldBe silaValue
+                                    is Err -> silaParser should beOfType<Val<ValueError,Identity,Character>>()
+                                }
+                            }
+                            is Err -> schemaDocParser should beOfType<Val<List<DocParseError>, Identity, SchemaDoc>>()
+                        }
                     }
+                    is SchemaParseError -> schema should beOfType<SchemaParseValue>()
                 }
             }
 

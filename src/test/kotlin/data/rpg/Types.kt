@@ -7,7 +7,7 @@ import effect.effApply
 import effect.effError
 import lulo.document.DocDict
 import lulo.document.DocType
-import lulo.document.SpecDoc
+import lulo.document.SchemaDoc
 import lulo.document.docType
 import lulo.value.UnexpectedType
 import lulo.value.UnknownCase
@@ -24,7 +24,7 @@ data class Character(val name : String,
 
     companion object Factory
     {
-        fun fromDocument(doc : SpecDoc) : ValueParser<Character> = when (doc)
+        fun fromDocument(doc : SchemaDoc) : ValueParser<Character> = when (doc)
         {
             is DocDict -> effApply(::Character,
                                    doc.text("name"),
@@ -42,7 +42,7 @@ data class Class(val name : String, val usesMagic: Boolean, val healthBonus : Ma
 
     companion object Factory
     {
-        fun fromDocument(doc : SpecDoc) : ValueParser<Class> = when (doc)
+        fun fromDocument(doc : SchemaDoc) : ValueParser<Class> = when (doc)
         {
             is DocDict -> effApply(::Class,
                                    doc.text("name"),
@@ -58,7 +58,7 @@ sealed class Item
 {
     companion object Factory
     {
-        fun fromDocument(doc : SpecDoc) : ValueParser<Item> = when (doc)
+        fun fromDocument(doc : SchemaDoc) : ValueParser<Item> = when (doc)
         {
             is DocDict -> when (doc.case())
             {
@@ -75,7 +75,7 @@ sealed class Item
     {
         companion object Factory
         {
-            fun fromDocument(doc : SpecDoc) : ValueParser<Item> = when (doc)
+            fun fromDocument(doc : SchemaDoc) : ValueParser<Item> = when (doc)
             {
                 is DocDict -> effApply(::Weapon, doc.text("name"), doc.int("damage"))
                 else       -> effError(UnexpectedType(DocType.DICT, docType(doc), doc.path))
@@ -88,7 +88,7 @@ sealed class Item
     {
         companion object Factory
         {
-            fun fromDocument(doc : SpecDoc) : ValueParser<Item> = when (doc)
+            fun fromDocument(doc : SchemaDoc) : ValueParser<Item> = when (doc)
             {
                 is DocDict -> effApply(::Potion, doc.text("name"), doc.double("price"))
                 else       -> effError(UnexpectedType(DocType.DICT, docType(doc), doc.path))

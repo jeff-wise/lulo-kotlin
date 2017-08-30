@@ -13,17 +13,18 @@ import lulo.value.UnexpectedType
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Specification Document
+ * Schema Document
  */
-sealed class SpecDoc(open val path : DocPath,
-                     open val cases : List<String>)
+sealed class SchemaDoc(open val path : DocPath,
+                       open val cases : List<String>)
 {
 
-    abstract fun nextCase() : SpecDoc
+    abstract fun nextCase() : SchemaDoc
+
 
     fun case() : String? =
         if (cases.isNotEmpty())
-            cases.first()
+            cases.last()
         else
             null
 
@@ -34,15 +35,22 @@ sealed class SpecDoc(open val path : DocPath,
 // Document > Dictionary
 // ---------------------------------------------------------------------------------------------
 
-data class DocDict(val fields : Map<String,SpecDoc>,
+data class DocDict(val fields : Map<String, SchemaDoc>,
                    override val cases : List<String>,
-                   override val path : DocPath) : SpecDoc(path, cases)
+                   override val path : DocPath) : SchemaDoc(path, cases)
 {
 
-    constructor(fields : Map<String,SpecDoc>, path : DocPath) : this(fields, listOf(), path)
+    constructor(fields : Map<String, SchemaDoc>) : this(fields, listOf(), DocPath())
 
 
-    override fun nextCase() : SpecDoc = DocDict(fields, cases.drop(1), path)
+    constructor(fields : Map<String, SchemaDoc>, cases : List<String>)
+            : this(fields, cases, DocPath())
+
+
+    constructor(fields : Map<String, SchemaDoc>, path : DocPath) : this(fields, listOf(), path)
+
+
+    override fun nextCase() : SchemaDoc = DocDict(fields, cases.drop(1), path)
 
 
 
@@ -53,7 +61,7 @@ data class DocDict(val fields : Map<String,SpecDoc>,
     // At
     // -----------------------------------------------------------------------------------------
 
-    fun at(key : String) : ValueParser<SpecDoc>
+    fun at(key : String) : ValueParser<SchemaDoc>
     {
         val fieldDoc = fields[key]
 
@@ -64,7 +72,7 @@ data class DocDict(val fields : Map<String,SpecDoc>,
     }
 
 
-    fun maybeAt(key : String) : ValueParser<Maybe<SpecDoc>>
+    fun maybeAt(key : String) : ValueParser<Maybe<SchemaDoc>>
     {
         val fieldDoc = fields[key]
 
@@ -344,18 +352,24 @@ data class DocDict(val fields : Map<String,SpecDoc>,
 // Document > List
 // ---------------------------------------------------------------------------------------------
 
-data class DocList(val docs : List<SpecDoc>,
+data class DocList(val docs : List<SchemaDoc>,
                    override val cases : List<String>,
-                   override val path : DocPath) : SpecDoc(path, cases)
+                   override val path : DocPath) : SchemaDoc(path, cases)
 {
 
-    constructor(docs : List<SpecDoc>, path : DocPath) : this(docs, listOf(), path)
+    constructor(docs : List<SchemaDoc>) : this(docs, listOf(), DocPath())
 
 
-    override fun nextCase() : SpecDoc = DocList(docs, cases.drop(1), path)
+    constructor(docs : List<SchemaDoc>, cases : List<String>) : this(docs, cases, DocPath())
 
 
-    fun <T> map(f : (SpecDoc) -> ValueParser<T>) : ValueParser<List<T>>
+    constructor(docs : List<SchemaDoc>, path : DocPath) : this(docs, listOf(), path)
+
+
+    override fun nextCase() : SchemaDoc = DocList(docs, cases.drop(1), path)
+
+
+    fun <T> map(f : (SchemaDoc) -> ValueParser<T>) : ValueParser<List<T>>
     {
         val results = mutableListOf<T>()
 
@@ -376,7 +390,7 @@ data class DocList(val docs : List<SpecDoc>,
     }
 
 
-    fun <T> mapMut(f : (SpecDoc) -> ValueParser<T>) : ValueParser<MutableList<T>>
+    fun <T> mapMut(f : (SchemaDoc) -> ValueParser<T>) : ValueParser<MutableList<T>>
     {
         val results = mutableListOf<T>()
 
@@ -397,28 +411,7 @@ data class DocList(val docs : List<SpecDoc>,
     }
 
 
-    fun <T> mapIndexed(f : (SpecDoc, Int) -> ValueParser<T>) : ValueParser<MutableList<T>>
-    {
-        val results = mutableListOf<T>()
-
-
-        docs.forEachIndexed { index, doc ->
-
-            val valueParser = f(doc, index)
-
-            when (valueParser) {
-                is Val -> results.add(valueParser.value)
-                is Err  -> {
-                    return effError(valueParser.error)
-                }
-            }
-        }
-
-        return effValue(results)
-    }
-
-
-    fun <T> mapIndexedMut(f : (SpecDoc, Int) -> ValueParser<T>) : ValueParser<MutableList<T>>
+    fun <T> mapIndexed(f : (SchemaDoc, Int) -> ValueParser<T>) : ValueParser<MutableList<T>>
     {
         val results = mutableListOf<T>()
 
@@ -439,7 +432,28 @@ data class DocList(val docs : List<SpecDoc>,
     }
 
 
-    fun <T> mapSet(f : (SpecDoc) -> ValueParser<T>) : ValueParser<Set<T>>
+    fun <T> mapIndexedMut(f : (SchemaDoc, Int) -> ValueParser<T>) : ValueParser<MutableList<T>>
+    {
+        val results = mutableListOf<T>()
+
+
+        docs.forEachIndexed { index, doc ->
+
+            val valueParser = f(doc, index)
+
+            when (valueParser) {
+                is Val -> results.add(valueParser.value)
+                is Err  -> {
+                    return effError(valueParser.error)
+                }
+            }
+        }
+
+        return effValue(results)
+    }
+
+
+    fun <T> mapSet(f : (SchemaDoc) -> ValueParser<T>) : ValueParser<Set<T>>
     {
         val results = mutableSetOf<T>()
 
@@ -459,7 +473,7 @@ data class DocList(val docs : List<SpecDoc>,
     }
 
 
-    fun <T> mapSetMut(f : (SpecDoc) -> ValueParser<T>) : ValueParser<MutableSet<T>>
+    fun <T> mapSetMut(f : (SchemaDoc) -> ValueParser<T>) : ValueParser<MutableSet<T>>
     {
         val results = mutableSetOf<T>()
 
@@ -479,7 +493,7 @@ data class DocList(val docs : List<SpecDoc>,
     }
 
 
-    fun <T> mapHashSet(f : (SpecDoc) -> ValueParser<T>) : ValueParser<HashSet<T>>
+    fun <T> mapHashSet(f : (SchemaDoc) -> ValueParser<T>) : ValueParser<HashSet<T>>
     {
         val results = hashSetOf<T>()
 
@@ -499,7 +513,7 @@ data class DocList(val docs : List<SpecDoc>,
     }
 
 
-    fun <T> mapArrayList(f : (SpecDoc) -> ValueParser<T>) : ValueParser<ArrayList<T>>
+    fun <T> mapArrayList(f : (SchemaDoc) -> ValueParser<T>) : ValueParser<ArrayList<T>>
     {
         val results = arrayListOf<T>()
 
@@ -570,11 +584,19 @@ data class DocList(val docs : List<SpecDoc>,
 
 data class DocText(val text : String,
                    override val cases : List<String>,
-                   override val path : DocPath) : SpecDoc(path, cases)
+                   override val path : DocPath) : SchemaDoc(path, cases)
 {
+
+    constructor(text : String) : this(text, listOf(), DocPath())
+
+
+    constructor(text : String, cases : List<String>) : this(text, cases, DocPath())
+
+
     constructor(text : String, path : DocPath) : this(text, listOf(), path)
 
-    override fun nextCase() : SpecDoc = DocText(text, cases.drop(1), path)
+
+    override fun nextCase() : SchemaDoc = DocText(text, cases.drop(1), path)
 
 }
 
@@ -585,11 +607,19 @@ data class DocText(val text : String,
 
 data class DocNumber(val number : Double,
                      override val cases : List<String>,
-                     override val path : DocPath) : SpecDoc(path, cases)
+                     override val path : DocPath) : SchemaDoc(path, cases)
 {
+
+    constructor(number : Double) : this(number, listOf(), DocPath())
+
+
+    constructor(number : Double, cases : List<String>) : this(number, cases, DocPath())
+
+
     constructor(number : Double, path : DocPath) : this(number, listOf(), path)
 
-    override fun nextCase() : SpecDoc = DocNumber(number, cases.drop(1), path)
+
+    override fun nextCase() : SchemaDoc = DocNumber(number, cases.drop(1), path)
 }
 
 
@@ -599,11 +629,19 @@ data class DocNumber(val number : Double,
 
 data class DocBoolean(val boolean : Boolean,
                       override val cases : List<String>,
-                      override val path : DocPath) : SpecDoc(path, cases)
+                      override val path : DocPath) : SchemaDoc(path, cases)
 {
+
+    constructor(boolean : Boolean) : this(boolean, listOf(), DocPath())
+
+
+    constructor(boolean : Boolean, cases : List<String>) : this(boolean, cases, DocPath())
+
+
     constructor(boolean : Boolean, path : DocPath) : this(boolean, listOf(), path)
 
-    override fun nextCase() : SpecDoc = DocBoolean(boolean, cases.drop(1), path)
+
+    override fun nextCase() : SchemaDoc = DocBoolean(boolean, cases.drop(1), path)
 }
 
 
@@ -621,7 +659,7 @@ enum class DocType
 }
 
 
-fun docType(doc : SpecDoc) : DocType = when (doc)
+fun docType(doc : SchemaDoc) : DocType = when (doc)
 {
     is DocDict    -> DocType.DICT
     is DocList    -> DocType.LIST
@@ -650,8 +688,12 @@ class DocLogEmpty : DocLog()
 data class DocPath(val nodes : List<DocNode>)
 {
 
+    constructor() : this(listOf())
+
+
     infix fun withLocation(node : DocNode) : DocPath =
         DocPath(nodes.plus(node))
+
 
     override fun toString(): String
     {

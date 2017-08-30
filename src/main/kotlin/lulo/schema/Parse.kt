@@ -1,5 +1,5 @@
 
-package lulo.spec
+package lulo.schema
 
 
 import com.kispoko.culebra.*
@@ -10,18 +10,17 @@ import lulo.document.*
 
 
 // TODO pass in lulotype, so we have complete type info for debugging
-fun customTypeParser(type : ObjectType,
+fun customTypeParser(type : SchemaType,
                      yamlValue : YamlValue,
                      cases : List<String>,
                      path : DocPath,
-                     spec : Spec,
-                     specDependencies: List<Spec>) : DocParser = when (type)
+                     spec : Schema,
+                     specDependencies : List<Schema>) : DocParser = when (type)
 {
     is Product   -> productTypeParser(type, yamlValue, cases, path, spec, specDependencies)
     is Sum       -> sumTypeParser(type, yamlValue, cases, path, spec, specDependencies)
-    is Primitive -> simpleTypeParser(type, yamlValue, cases, path, spec, specDependencies)
+    is Primitive -> primitiveTypeParser(type, yamlValue, cases, path, spec, specDependencies)
     is Symbol    -> symbolTypeParser(type, yamlValue, path)
-    else         -> docError(listOf(UnknownKind(path)))
 }
 
 
@@ -29,12 +28,12 @@ private fun productTypeParser(productType : Product,
                               yamlValue : YamlValue,
                               cases : List<String>,
                               path : DocPath,
-                              spec : Spec,
-                              specDependencies : List<Spec>) : DocParser = when (yamlValue)
+                              spec : Schema,
+                              specDependencies : List<Schema>) : DocParser = when (yamlValue)
 {
     is YamlDict ->
     {
-        val docMap = hashMapOf<String, SpecDoc>()
+        val docMap = hashMapOf<String, SchemaDoc>()
         val errors = mutableListOf<DocParseError>()
 
         for (field in productType.fields)
@@ -42,10 +41,11 @@ private fun productTypeParser(productType : Product,
             val fieldYamlValue = yamlValue.at(field.name.name)
             when (fieldYamlValue)
             {
-                is Result ->
+                is Val ->
                 {
                     val fieldPath = path withLocation DocKeyNode(field.name.name)
-                    val fieldParse = fieldParser(field, fieldYamlValue.value, fieldPath, spec, specDependencies)
+                    val fieldParse = fieldParser(field, fieldYamlValue.value, cases,
+                                                 fieldPath, spec, specDependencies)
 
                     when (fieldParse)
                     {
@@ -53,13 +53,13 @@ private fun productTypeParser(productType : Product,
                         is Err -> errors.addAll(fieldParse.error)
                     }
                 }
-                is Error ->
+                is Err ->
                 {
                     val fieldYamlError = fieldYamlValue.error
                     when (fieldYamlError) {
                         is KeyDoesNotExist ->
                         {
-                            if (field.presence == FieldPresence.REQUIRED)
+                            if (field.presence == FieldPresence.Required)
                                 errors.add(MissingField(field.name.name, path))
                         }
                         else               -> errors.add(YamlError(fieldYamlError, path))
@@ -69,9 +69,9 @@ private fun productTypeParser(productType : Product,
         }
 
         if (errors.size > 0)
-            docError<SpecDoc>(errors)
+            docError(errors)
         else
-            docResult<SpecDoc>(DocDict(docMap, cases, path))
+            docResult<SchemaDoc>(DocDict(docMap, cases, path))
     }
     else        -> docError(listOf(ExpectedProduct(path)))
 }
@@ -81,15 +81,15 @@ private fun sumTypeParser(sumType : Sum,
                           yamlValue : YamlValue,
                           cases : List<String>,
                           path : DocPath,
-                          spec : Spec,
-                          specDependencies : List<Spec>) : DocParser = when (yamlValue)
+                          spec : Schema,
+                          specDependencies : List<Schema>) : DocParser = when (yamlValue)
 {
     is YamlDict ->
     {
         val typeYamlValueParser = yamlValue.at("type")
         when (typeYamlValueParser)
         {
-            is Result ->
+            is Val ->
             {
                 val typeYamlValue = typeYamlValueParser.value
                 when (typeYamlValue)
@@ -111,13 +111,13 @@ private fun sumTypeParser(sumType : Sum,
                             val caseYamlValueParser = yamlValue.at(caseTypeName.name)
                             when (caseYamlValueParser)
                             {
-                                is Result ->
+                                is Val ->
                                 {
                                     val newCases = cases.plus(caseTypeName.name)
-                                    customTypeParser(caseType.type, caseYamlValueParser.value, newCases,
+                                    customTypeParser(caseType, caseYamlValueParser.value, newCases,
                                             path, spec, specDependencies)
                                 }
-                                is Error ->
+                                is Err ->
                                 {
                                     val fieldYamlError = caseYamlValueParser.error
                                     when (fieldYamlError) {
@@ -135,7 +135,7 @@ private fun sumTypeParser(sumType : Sum,
                                                                   path)))
                 }
             }
-            is Error ->
+            is Err ->
             {
                 val fieldYamlError = typeYamlValueParser.error
                 when (fieldYamlError) {
@@ -150,32 +150,26 @@ private fun sumTypeParser(sumType : Sum,
 }
 
 
-private fun simpleTypeParser(simpleType : Primitive,
-                             yamlValue : YamlValue,
-                             cases : List<String>,
-                             path : DocPath,
-                             spec : Spec,
-                             specDependencies : List<Spec>) : DocParser
+private fun primitiveTypeParser(primitiveType : Primitive,
+                                yamlValue : YamlValue,
+                                cases : List<String>,
+                                path : DocPath,
+                                spec : Schema,
+                                specDependencies : List<Schema>) : DocParser
 {
-    val typeKind = valueKind(simpleType.baseTypeName)
-
-    if (typeKind == ValueKind.PRIMITIVE)
+    return if (isPrimitiveType(primitiveType.baseTypeName))
     {
-        return primValueParser(primValueType(simpleType.baseTypeName)!!, yamlValue, path, cases)
-    }
-    else if (typeKind == ValueKind.CUSTOM)
-    {
-        val baseTypeName = TypeName(simpleType.baseTypeName)
-        val baseType = specType(baseTypeName, specDependencies.plus(spec))
-
-        if (baseType == null)
-            return docError(listOf(TypeDoesNotExist(baseTypeName, path)))
-        else
-            return customTypeParser(baseType.type, yamlValue, listOf(), path, spec, specDependencies)
+        primValueParser(primValueType(primitiveType.baseTypeName)!!, yamlValue, path, cases)
     }
     else
     {
-        return docError(listOf(UnknownKind(path)))
+        val baseTypeName = TypeName(primitiveType.baseTypeName.name)
+        val baseType = specType(baseTypeName, specDependencies.plus(spec))
+
+        if (baseType == null)
+            docError(listOf(TypeDoesNotExist(baseTypeName, path)))
+        else
+            customTypeParser(baseType, yamlValue, cases, path, spec, specDependencies)
     }
 }
 
@@ -187,10 +181,10 @@ private fun symbolTypeParser(symbolType : Symbol,
 {
     is YamlText ->
     {
-        if (yamlValue.text.equals(symbolType.symbol))
-            docResult<SpecDoc>(DocText(symbolType.symbol, path))
+        if (yamlValue.text == symbolType.symbol)
+            docResult<SchemaDoc>(DocText(symbolType.symbol, path))
         else
-            docError<SpecDoc>(listOf(ExpectedSum(path)))
+            docError(listOf(ExpectedSum(path)))
     }
     else        -> docError(listOf(UnexpectedType(YamlType.TEXT, yamlType(yamlValue), path)))
 }
@@ -202,15 +196,16 @@ private fun symbolTypeParser(symbolType : Symbol,
 
 private fun fieldParser(field : Field,
                         yamlValue: YamlValue,
+                        cases : List<String>,
                         path : DocPath,
-                        spec : Spec,
-                        specDependencies: List<Spec>) : DocParser = when (field.valueType)
+                        spec : Schema,
+                        specDependencies: List<Schema>) : DocParser = when (field.valueType)
 {
-    is Prim       -> primValueParser(field.valueType.type, yamlValue, path, listOf())
-    is PrimList   -> primListValueParser(field.valueType.type, yamlValue, path)
-    is Custom     -> customValueParser(field.valueType.name, yamlValue, path,
+    is Prim       -> primValueParser(field.valueType.type, yamlValue, path, cases)
+    is PrimList   -> primListValueParser(field.valueType.type, yamlValue, cases, path)
+    is Custom     -> customValueParser(field.valueType.name, yamlValue, cases, path,
                                        spec, specDependencies)
-    is CustomList -> customListValueParser(field.valueType.name, yamlValue, path,
+    is CustomList -> customListValueParser(field.valueType.name, yamlValue, cases, path,
                                            spec, specDependencies)
 }
 
@@ -228,9 +223,9 @@ private fun primValueParser(primValueType: PrimValueType,
                             cases : List<String>) : DocParser =
     when (primValueType)
     {
-        is PrimValueType.NUMBER  -> primNumberParser(yamlValue, path, cases)
-        is PrimValueType.STRING  -> primStringParser(yamlValue, path, cases)
-        is PrimValueType.BOOLEAN -> primBooleanParser(yamlValue, path, cases)
+        is PrimValueType.Number  -> primNumberParser(yamlValue, path, cases)
+        is PrimValueType.String  -> primStringParser(yamlValue, path, cases)
+        is PrimValueType.Boolean -> primBooleanParser(yamlValue, path, cases)
         else                     -> docError(listOf(UnknownPrimType(primValueType, path)))
     }
 
@@ -240,16 +235,17 @@ private fun primValueParser(primValueType: PrimValueType,
 
 private fun primListValueParser(primValueType : PrimValueType,
                                 yamlValue : YamlValue,
+                                cases : List<String>,
                                 path : DocPath) : DocParser = when (yamlValue)
 {
     is YamlArray ->
     {
         val errors = mutableListOf<DocParseError>()
-        val docs = mutableListOf<SpecDoc>()
+        val docs = mutableListOf<SchemaDoc>()
 
         for (yamlValueElement in yamlValue.list)
         {
-            val elementDocParse = primValueParser(primValueType, yamlValue, path, listOf())
+            val elementDocParse = primValueParser(primValueType, yamlValueElement, path, cases)
 
             when (elementDocParse) {
                 is Val -> docs.add(elementDocParse.value)
@@ -258,9 +254,9 @@ private fun primListValueParser(primValueType : PrimValueType,
         }
 
         if (errors.size > 0)
-            docError<SpecDoc>(errors)
+            docError(errors)
         else
-            docResult<SpecDoc>(DocList(docs, listOf(), path))
+            docResult<SchemaDoc>(DocList(docs, cases, path))
     }
     else         -> docError(listOf(UnexpectedType(YamlType.ARRAY, yamlType(yamlValue), path)))
 }
@@ -271,16 +267,17 @@ private fun primListValueParser(primValueType : PrimValueType,
 
 private fun customValueParser(customTypeName : TypeName,
                               yamlValue : YamlValue,
+                              cases : List<String>,
                               path : DocPath,
-                              spec : Spec,
-                              specDependencies: List<Spec>) : DocParser
+                              spec : Schema,
+                              specDependencies: List<Schema>) : DocParser
 {
     val customType = specType(customTypeName, specDependencies.plus(spec))
 
-    if (customType == null)
-        return docError(listOf(TypeDoesNotExist(customTypeName, path)))
+    return if (customType == null)
+        docError(listOf(TypeDoesNotExist(customTypeName, path)))
     else
-        return customTypeParser(customType.type, yamlValue, listOf(), path, spec, specDependencies)
+        customTypeParser(customType, yamlValue, cases, path, spec, specDependencies)
 }
 
 
@@ -289,9 +286,10 @@ private fun customValueParser(customTypeName : TypeName,
 
 private fun customListValueParser(customTypeName : TypeName,
                                   yamlValue : YamlValue,
+                                  cases : List<String>,
                                   path : DocPath,
-                                  spec : Spec,
-                                  specDependencies : List<Spec>) : DocParser = when (yamlValue)
+                                  spec : Schema,
+                                  specDependencies : List<Schema>) : DocParser = when (yamlValue)
 {
     is YamlArray ->
     {
@@ -304,12 +302,12 @@ private fun customListValueParser(customTypeName : TypeName,
         else
         {
             val errors = mutableListOf<DocParseError>()
-            val docs = mutableListOf<SpecDoc>()
+            val docs = mutableListOf<SchemaDoc>()
 
             yamlValue.list.forEachIndexed { index, yamlListValue ->
 
                 val indexPath = path withLocation DocIndexNode(index)
-                val docParse = customTypeParser(customType.type, yamlListValue, listOf(), indexPath,
+                val docParse = customTypeParser(customType, yamlListValue, cases, indexPath,
                                         spec, specDependencies)
 
                 when (docParse)
@@ -320,12 +318,12 @@ private fun customListValueParser(customTypeName : TypeName,
             }
 
             if (errors.size > 0)
-                docError<SpecDoc>(errors)
+                docError(errors)
             else
-                docResult<SpecDoc>(DocList(docs, listOf(), path))
+                docResult<SchemaDoc>(DocList(docs, cases, path))
         }
     }
-    is YamlNull -> docResult<SpecDoc>(DocList(listOf(), listOf(), path))
+    is YamlNull -> docResult(DocList(listOf(), listOf(), path))
     else        -> docError(listOf(UnexpectedType(YamlType.ARRAY, yamlType(yamlValue), path)))
 }
 
@@ -376,9 +374,9 @@ private fun primBooleanParser(yamlValue : YamlValue,
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Search for a custom type definition in the spec being parsed or in one of its dependencies.
+ * Search for a custom type definition in the schema being parsed or in one of its dependencies.
  */
-fun specType(typeName : TypeName, specs : List<Spec>) : LuloType?
+fun specType(typeName : TypeName, specs : List<Schema>) : SchemaType?
 {
     System.out.print("specs size:" + specs.size)
     return specs.firstOrNull { it.hasType(typeName) }

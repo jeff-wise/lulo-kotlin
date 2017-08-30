@@ -9,8 +9,8 @@ import effect.Eff
 import effect.Err
 import effect.Identity
 import effect.Val
-import lulo.spec.PrimValueType
-import lulo.spec.TypeName
+import lulo.schema.PrimValueType
+import lulo.schema.TypeName
 
 
 
@@ -18,7 +18,7 @@ import lulo.spec.TypeName
 // DOCUMENT PARSER
 // ---------------------------------------------------------------------------------------------
 
-typealias DocParser = Eff<List<DocParseError>, Identity, SpecDoc>
+typealias DocParser = Eff<List<DocParseError>, Identity, SchemaDoc>
 
 
 fun <A> docError(docErrors : List<DocParseError>) : Eff<List<DocParseError>, Identity, A> =
