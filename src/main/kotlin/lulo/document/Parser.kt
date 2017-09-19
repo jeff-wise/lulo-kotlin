@@ -9,7 +9,7 @@ import effect.Eff
 import effect.Err
 import effect.Identity
 import effect.Val
-import lulo.schema.PrimValueType
+import lulo.schema.Primitive
 import lulo.schema.TypeName
 
 
@@ -98,11 +98,11 @@ data class UnexpectedType(val expected : YamlType,
 }
 
 
-data class UnknownPrimType(val primValueType : PrimValueType,
+data class UnknownPrimType(val primValueType : Primitive,
                            override val path : DocPath) : DocParseError(path)
 {
     override fun toString(): String  = """
-                                       Unknown Primitive Type
+                                       Unknown Synonym Type
                                            type: $primValueType
                                            path: $path
                                        """
@@ -113,7 +113,7 @@ data class UnexpectedSymbol(val expectedSymbol : String,
                             override val path : DocPath) : DocParseError(path)
 {
     override fun toString(): String  = """
-           |Unknown Primitive Type
+           |Unknown Synonym Type
            |   type: $expectedSymbol
            |   path: $path
            |"""

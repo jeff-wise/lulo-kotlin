@@ -77,20 +77,20 @@ val types : List<SchemaType> = listOf(
             )),
 
     // Schema Version
-    Primitive(TypeName("schema_version"),
+    Synonym(TypeName("schema_version"),
               TypeLabel("The schema version."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Schema Name
-    Primitive(TypeName("schema_name"),
+    Synonym(TypeName("schema_name"),
               TypeLabel("The schema name."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Schema Author
     Product(TypeName("schema_author"),
@@ -102,7 +102,7 @@ val types : List<SchemaType> = listOf(
                 Field(FieldName("name"),
                       FieldPresence.Required,
                       Nothing(),
-                      Prim(PrimValueType.String),
+                      Prim(Primitive.String),
                       Nothing())
             )),
 
@@ -135,7 +135,7 @@ val types : List<SchemaType> = listOf(
                 Field(FieldName("overview"),
                       FieldPresence.Optional,
                       Nothing(),
-                      Prim(PrimValueType.String),
+                      Prim(Primitive.String),
                       Nothing())
             )),
 
@@ -234,7 +234,7 @@ val types : List<SchemaType> = listOf(
                     Nothing())
             )),
 
-    // Schema Type: Primitive
+    // Schema Type: Synonym
     Product(TypeName("primitive_type"),
             TypeLabel("A primitive type."),
             Nothing(),
@@ -269,7 +269,7 @@ val types : List<SchemaType> = listOf(
                 Field(FieldName("base_type"),
                     FieldPresence.Required,
                     Nothing(),
-                    Custom(TypeName("type_name")),
+                    Custom(TypeName("base_type")),
                     Nothing())
             )),
 
@@ -305,44 +305,44 @@ val types : List<SchemaType> = listOf(
                       Nothing(),
                       CustomList(TypeName("constraint_name")),
                       Nothing()),
-                Field(FieldName("base_type"),
+                Field(FieldName("symbol"),
                     FieldPresence.Required,
                     Nothing(),
-                    Prim(PrimValueType.String),
+                    Prim(Primitive.String),
                     Nothing())
             )),
 
     // Type Name
-    Primitive(TypeName("type_name"),
+    Synonym(TypeName("type_name"),
               TypeLabel("A type name."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Type Label
-    Primitive(TypeName("type_label"),
+    Synonym(TypeName("type_label"),
               TypeLabel("A type label."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Type Description
-    Primitive(TypeName("type_description"),
+    Synonym(TypeName("type_description"),
               TypeLabel("A type description."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Type Group
-    Primitive(TypeName("type_group"),
+    Synonym(TypeName("type_group"),
               TypeLabel("A type group."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Field
     Product(TypeName("field"),
@@ -379,36 +379,36 @@ val types : List<SchemaType> = listOf(
             )),
 
     // Field Name
-    Primitive(TypeName("field_name"),
+    Synonym(TypeName("field_name"),
               TypeLabel("A field name."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Field Presence
-    Primitive(TypeName("field_presence"),
+    Synonym(TypeName("field_presence"),
               TypeLabel("The field presecene: required / optional."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Field Description
-    Primitive(TypeName("field_description"),
+    Synonym(TypeName("field_description"),
               TypeLabel("The field description."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Field Default Value
-    Primitive(TypeName("field_default_value"),
+    Synonym(TypeName("field_default_value"),
               TypeLabel("The field default value."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Case
     Product(TypeName("case"),
@@ -430,12 +430,12 @@ val types : List<SchemaType> = listOf(
             )),
 
     // Case Description
-    Primitive(TypeName("case_description"),
+    Synonym(TypeName("case_description"),
               TypeLabel("A case description."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Value Type
     Sum(TypeName("value_type"),
@@ -454,45 +454,58 @@ val types : List<SchemaType> = listOf(
                  Nothing())
         )),
 
-    // Value Type: Primitive
-    Primitive(TypeName("prim_type"),
-              TypeLabel("A primitive type."),
-              Nothing(),
-              Nothing(),
-              setOf(),
-              TypeName("prim_value_type")),
+    // Base Value Type
+    Sum(TypeName("base_type"),
+        TypeLabel("The type of a synonym value."),
+        Nothing(),
+        Nothing(),
+        setOf(),
+        listOf(
+            Case(TypeName("prim_type"),
+                 Nothing()),
+            Case(TypeName("custom_type"),
+                 Nothing())
+        )),
 
-    // Value Type: Primitive Collection
-    Primitive(TypeName("prim_coll_type"),
-              TypeLabel("A primitive collection type."),
-              Nothing(),
-              Nothing(),
-              setOf(),
-              TypeName("prim_value_type")),
+    // Value Type: Synonym
+    Synonym(TypeName("prim_type"),
+            TypeLabel("A primitive type."),
+            Nothing(),
+            Nothing(),
+            setOf(),
+            BaseCustom(TypeName("prim_value_type"))),
+
+    // Value Type: Synonym Collection
+    Synonym(TypeName("prim_coll_type"),
+            TypeLabel("A primitive collection type."),
+            Nothing(),
+            Nothing(),
+            setOf(),
+            BaseCustom(TypeName("prim_value_type"))),
 
     // Value Type: Custom
-    Primitive(TypeName("custom_type"),
-              TypeLabel("A custom type."),
-              Nothing(),
-              Nothing(),
-              setOf(),
-              TypeName("type_name")),
+    Synonym(TypeName("custom_type"),
+            TypeLabel("A custom type."),
+            Nothing(),
+            Nothing(),
+            setOf(),
+            BaseCustom(TypeName("type_name"))),
 
     // Value Type: Custom Collection
-    Primitive(TypeName("custom_coll_type"),
-              TypeLabel("A custom type."),
-              Nothing(),
-              Nothing(),
-              setOf(),
-              TypeName("type_name")),
+    Synonym(TypeName("custom_coll_type"),
+            TypeLabel("A custom type."),
+            Nothing(),
+            Nothing(),
+            setOf(),
+            BaseCustom(TypeName("type_name"))),
 
-    // Primitive Value Type
-    Primitive(TypeName("prim_value_type"),
-              TypeLabel("A primitive value type."),
-              Nothing(),
-              Nothing(),
-              setOf(),
-              TypeName("string")),
+    // Synonym Value Type
+    Synonym(TypeName("prim_value_type"),
+            TypeLabel("A primitive value type."),
+            Nothing(),
+            Nothing(),
+            setOf(),
+            BasePrim(Primitive.String)),
 
     // Constraint
     Sum(TypeName("constraint"),
@@ -508,20 +521,20 @@ val types : List<SchemaType> = listOf(
         )),
 
     // Constraint Name
-    Primitive(TypeName("constraint_name"),
+    Synonym(TypeName("constraint_name"),
               TypeLabel("The constraint name."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Constraint Description
-    Primitive(TypeName("constraint_description"),
+    Synonym(TypeName("constraint_description"),
               TypeLabel("The constraint description."),
               Nothing(),
               Nothing(),
               setOf(),
-              TypeName("string")),
+              BasePrim(Primitive.String)),
 
     // Constraint: String One Of
     Product(TypeName("constraint_string_one_of"),
@@ -543,7 +556,7 @@ val types : List<SchemaType> = listOf(
                 Field(FieldName("set"),
                       FieldPresence.Required,
                       Nothing(),
-                      PrimList(PrimValueType.String),
+                      PrimList(Primitive.String),
                       Nothing())
             )),
 
@@ -567,7 +580,7 @@ val types : List<SchemaType> = listOf(
                 Field(FieldName("lower_bound"),
                       FieldPresence.Required,
                       Nothing(),
-                      PrimList(PrimValueType.Number),
+                      PrimList(Primitive.Number),
                       Nothing())
             ))
 )

@@ -47,12 +47,12 @@ val silaDocObject =
                     DocDict(
                         mapOf(
                             "name" to DocText("Staff",
-                                              listOf("weapon"),
+                                              listOf(),
                                               DocPath(listOf(DocKeyNode("inventory"),
                                                              DocIndexNode(0),
                                                              DocKeyNode("name")))),
                             "damage" to DocNumber(10.0,
-                                                  listOf("weapon"),
+                                                  listOf(),
                                                   DocPath(listOf(DocKeyNode("inventory"),
                                                                  DocIndexNode(0),
                                                                  DocKeyNode("damage"))))
@@ -63,12 +63,12 @@ val silaDocObject =
                     DocDict(
                         mapOf(
                             "name" to DocText("Healing",
-                                              listOf("potion"),
+                                              listOf(),
                                               DocPath(listOf(DocKeyNode("inventory"),
                                                              DocIndexNode(1),
                                                              DocKeyNode("name")))),
                             "price" to DocNumber(7.5,
-                                                listOf("potion"),
+                                                listOf(),
                                                 DocPath(listOf(DocKeyNode("inventory"),
                                                                DocIndexNode(1),
                                                                DocKeyNode("price"))))

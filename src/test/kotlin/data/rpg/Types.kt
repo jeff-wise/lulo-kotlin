@@ -2,13 +2,8 @@
 package data.rpg
 
 
-import effect.Maybe
-import effect.effApply
-import effect.effError
-import lulo.document.DocDict
-import lulo.document.DocType
-import lulo.document.SchemaDoc
-import lulo.document.docType
+import effect.*
+import lulo.document.*
 import lulo.value.UnexpectedType
 import lulo.value.UnknownCase
 import lulo.value.ValueError
@@ -19,8 +14,10 @@ import lulo.value.ValueParser
 data class Character(val name : String,
                      val race : String,
                      val _class : Class,
-                     val inventory : List<Item>)
+                     val inventory : List<Item>) : ToDocument
 {
+
+    // CONSTRUCTORS
 
     companion object Factory
     {
@@ -34,11 +31,25 @@ data class Character(val name : String,
             else        -> effError(UnexpectedType(DocType.DICT, docType(doc), doc.path))
         }
     }
+
+    // TO DOCUMENT
+
+    override fun toDocument() : SchemaDoc = DocDict(
+        mapOf(
+            "name" to DocText(this.name),
+            "race" to DocText(this.race),
+            "class" to this._class.toDocument(),
+            "inventory" to DocList(this.inventory.map { it.toDocument() })
+        ))
 }
 
 
-data class Class(val name : String, val usesMagic: Boolean, val healthBonus : Maybe<Int>)
+data class Class(val name : String,
+                 val usesMagic: Boolean,
+                 val healthBonus : Maybe<Int>) : ToDocument
 {
+
+    // CONSTRUCTORS
 
     companion object Factory
     {
@@ -51,11 +62,25 @@ data class Class(val name : String, val usesMagic: Boolean, val healthBonus : Ma
             else        -> effError(UnexpectedType(DocType.DICT, docType(doc), doc.path))
         }
     }
+
+    // TO DOCUMENT
+
+    override fun toDocument() : SchemaDoc =
+        DocDict(
+            mapOf(
+                "name" to DocText(this.name),
+                "uses_magic" to DocBoolean(this.usesMagic)
+            ))
+        .maybeMerge(this.healthBonus.ap {
+            Just(Pair("health_bonus", DocNumber(it.toDouble()))) })
 }
 
 
-sealed class Item
+sealed class Item : ToDocument
 {
+
+    // CONSTRUCTORS
+
     companion object Factory
     {
         fun fromDocument(doc : SchemaDoc) : ValueParser<Item> = when (doc)
@@ -70,9 +95,14 @@ sealed class Item
         }
     }
 
+    // WEAPON
+    // -----------------------------------------------------------------------------------------
 
     data class Weapon(val name : String, val damage : Int) : Item()
     {
+
+        // CONSTRUCTORS
+
         companion object Factory
         {
             fun fromDocument(doc : SchemaDoc) : ValueParser<Item> = when (doc)
@@ -81,11 +111,27 @@ sealed class Item
                 else       -> effError(UnexpectedType(DocType.DICT, docType(doc), doc.path))
             }
         }
+
+        // TO DOCUMENT
+
+        override fun toDocument() : SchemaDoc = DocDict(
+            mapOf(
+                "name" to DocText(this.name),
+                "damage" to DocNumber(this.damage.toDouble())
+            )
+        )
+
     }
 
 
+    // POTION
+    // -----------------------------------------------------------------------------------------
+
     data class Potion(val name : String, val price : Double) : Item()
     {
+
+        // CONSTRUCTORS
+
         companion object Factory
         {
             fun fromDocument(doc : SchemaDoc) : ValueParser<Item> = when (doc)
@@ -94,6 +140,16 @@ sealed class Item
                 else       -> effError(UnexpectedType(DocType.DICT, docType(doc), doc.path))
             }
         }
+
+        // TO DOCUMENT
+
+        override fun toDocument() : SchemaDoc = DocDict(
+            mapOf(
+                "name" to DocText(this.name),
+                "price" to DocNumber(this.price)
+            )
+        )
+
     }
 
 }

@@ -19,7 +19,7 @@ fun customTypeParser(type : SchemaType,
 {
     is Product   -> productTypeParser(type, yamlValue, cases, path, spec, specDependencies)
     is Sum       -> sumTypeParser(type, yamlValue, cases, path, spec, specDependencies)
-    is Primitive -> primitiveTypeParser(type, yamlValue, cases, path, spec, specDependencies)
+    is Synonym -> synonymTypeParser(type, yamlValue, cases, path, spec, specDependencies)
     is Symbol    -> symbolTypeParser(type, yamlValue, path)
 }
 
@@ -150,26 +150,26 @@ private fun sumTypeParser(sumType : Sum,
 }
 
 
-private fun primitiveTypeParser(primitiveType : Primitive,
-                                yamlValue : YamlValue,
-                                cases : List<String>,
-                                path : DocPath,
-                                spec : Schema,
-                                specDependencies : List<Schema>) : DocParser
+private fun synonymTypeParser(synonymType : Synonym,
+                              yamlValue : YamlValue,
+                              cases : List<String>,
+                              path : DocPath,
+                              spec : Schema,
+                              specDependencies : List<Schema>) : DocParser
 {
-    return if (isPrimitiveType(primitiveType.baseTypeName))
+    val baseType = synonymType.baseType
+    return when (baseType)
     {
-        primValueParser(primValueType(primitiveType.baseTypeName)!!, yamlValue, path, cases)
-    }
-    else
-    {
-        val baseTypeName = TypeName(primitiveType.baseTypeName.name)
-        val baseType = specType(baseTypeName, specDependencies.plus(spec))
-
-        if (baseType == null)
-            docError(listOf(TypeDoesNotExist(baseTypeName, path)))
-        else
-            customTypeParser(baseType, yamlValue, cases, path, spec, specDependencies)
+        is BasePrim -> {
+            primValueParser(baseType.type, yamlValue, path, cases)
+        }
+        is BaseCustom -> {
+            val customType = specType(baseType.name, specDependencies.plus(spec))
+            if (customType == null)
+                docError(listOf(TypeDoesNotExist(baseType.name, path)))
+            else
+                customTypeParser(customType, yamlValue, cases, path, spec, specDependencies)
+        }
     }
 }
 
@@ -201,11 +201,11 @@ private fun fieldParser(field : Field,
                         spec : Schema,
                         specDependencies: List<Schema>) : DocParser = when (field.valueType)
 {
-    is Prim       -> primValueParser(field.valueType.type, yamlValue, path, cases)
-    is PrimList   -> primListValueParser(field.valueType.type, yamlValue, cases, path)
-    is Custom     -> customValueParser(field.valueType.name, yamlValue, cases, path,
+    is Prim       -> primValueParser(field.valueType.type, yamlValue, path, listOf())
+    is PrimList   -> primListValueParser(field.valueType.type, yamlValue, listOf(), path)
+    is Custom     -> customValueParser(field.valueType.name, yamlValue, listOf(), path,
                                        spec, specDependencies)
-    is CustomList -> customListValueParser(field.valueType.name, yamlValue, cases, path,
+    is CustomList -> customListValueParser(field.valueType.name, yamlValue, listOf(), path,
                                            spec, specDependencies)
 }
 
@@ -217,15 +217,15 @@ private fun fieldParser(field : Field,
 // Primitve Value Parser
 // ---------------------------------------------------------------------------------------------
 
-private fun primValueParser(primValueType: PrimValueType,
+private fun primValueParser(primValueType : Primitive,
                             yamlValue : YamlValue,
                             path : DocPath,
                             cases : List<String>) : DocParser =
     when (primValueType)
     {
-        is PrimValueType.Number  -> primNumberParser(yamlValue, path, cases)
-        is PrimValueType.String  -> primStringParser(yamlValue, path, cases)
-        is PrimValueType.Boolean -> primBooleanParser(yamlValue, path, cases)
+        is Primitive.Number  -> primNumberParser(yamlValue, path, cases)
+        is Primitive.String  -> primStringParser(yamlValue, path, cases)
+        is Primitive.Boolean -> primBooleanParser(yamlValue, path, cases)
         else                     -> docError(listOf(UnknownPrimType(primValueType, path)))
     }
 
@@ -233,7 +233,7 @@ private fun primValueParser(primValueType: PrimValueType,
 // Primitve Value List Parser
 // ---------------------------------------------------------------------------------------------
 
-private fun primListValueParser(primValueType : PrimValueType,
+private fun primListValueParser(primValueType : Primitive,
                                 yamlValue : YamlValue,
                                 cases : List<String>,
                                 path : DocPath) : DocParser = when (yamlValue)
@@ -378,7 +378,6 @@ private fun primBooleanParser(yamlValue : YamlValue,
  */
 fun specType(typeName : TypeName, specs : List<Schema>) : SchemaType?
 {
-    System.out.print("specs size:" + specs.size)
     return specs.firstOrNull { it.hasType(typeName) }
                     ?.typeWithName(typeName)
 }

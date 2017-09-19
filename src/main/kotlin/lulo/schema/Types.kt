@@ -10,7 +10,7 @@ import lulo.value.UnexpectedType
 import lulo.value.UnknownCase
 import lulo.value.ValueError
 import lulo.value.ValueParser
-
+import java.io.InputStream
 
 
 // ---------------------------------------------------------------------------------------------
@@ -78,7 +78,7 @@ data class Schema(val version : SchemaVersion,
         typeByName.containsKey(typeName)
 
 
-    fun typeWithName(typeName: TypeName) : SchemaType? = typeByName[typeName]
+    fun typeWithName(typeName : TypeName) : SchemaType? = typeByName[typeName]
 
 
     // -----------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ data class Schema(val version : SchemaVersion,
     fun parseDocument(yamlString : String) : DocParser = this.parseDocument(yamlString, listOf())
 
 
-    fun parseDocument(yamlString : String, specDependencies: List<Schema>) : DocParser
+    fun parseDocument(yamlString : String, specDependencies : List<Schema>) : DocParser
     {
         val stringParse = YamlString.parse(yamlString)
         val path = DocPath(listOf())
@@ -134,9 +134,48 @@ data class Schema(val version : SchemaVersion,
             }
         }
 
-
     }
 
+
+    fun parseDocument(yamlIS : InputStream, schemaDependencies : List<Schema>) : DocParser
+    {
+        val yamlParseResult = YamlString.parse(yamlIS)
+        return this._parseDocument(yamlParseResult, schemaDependencies)
+    }
+
+
+    fun parseDocument(yamlIS : InputStream) : DocParser =
+        this.parseDocument(yamlIS, listOf())
+
+
+    private fun _parseDocument(yamlParseResult : YamlParse<YamlValue>,
+                               specDependencies : List<Schema>) : DocParser
+    {
+        val path = DocPath(listOf())
+
+        when (yamlParseResult)
+        {
+            is YamlParseValue ->
+            {
+                val rootType = specType(this.rootTypeName, specDependencies.plus(this))
+                return if (rootType == null)
+                    docError(listOf(TypeDoesNotExist(this.rootTypeName, path)))
+                else
+                    customTypeParser(rootType,
+                                     yamlParseResult.value,
+                                     listOf(),
+                                     path,
+                                     this,
+                                    specDependencies)
+            }
+            is YamlParseErrors ->
+            {
+                return docError(listOf(YamlStringError(yamlParseResult.errors, path)))
+            }
+        }
+
+
+    }
 
 }
 
@@ -263,7 +302,7 @@ sealed class SchemaType(open val name : TypeName,
         {
             "product_type"   -> Product.fromDocument(doc) as ValueParser<SchemaType>
             "sum_type"       -> Sum.fromDocument(doc) as ValueParser<SchemaType>
-            "primitive_type" -> Primitive.fromDocument(doc) as ValueParser<SchemaType>
+            "primitive_type" -> Synonym.fromDocument(doc) as ValueParser<SchemaType>
             "symbol_type"    -> Symbol.fromDocument(doc) as ValueParser<SchemaType>
             else             -> effError(UnknownCase(doc.case(), doc.path))
         }
@@ -499,25 +538,25 @@ data class Symbol(override val name : TypeName,
 }
 
 
-// Type > Object Type > Primitive
+// Type > Object Type > Synonym
 // -----------------------------------------------------------------------------
 
-data class Primitive(override val name : TypeName,
-                     override val label : TypeLabel,
-                     override val description : Maybe<TypeDescription>,
-                     override val group : Maybe<TypeGroup>,
-                     override val constraints : Set<ConstraintName>,
-                     val baseTypeName : TypeName)
+data class Synonym(override val name : TypeName,
+                   override val label : TypeLabel,
+                   override val description : Maybe<TypeDescription>,
+                   override val group : Maybe<TypeGroup>,
+                   override val constraints : Set<ConstraintName>,
+                   val baseType : BaseValueType)
                       : SchemaType(name, label, description, group, constraints)
 {
 
     companion object
     {
-        fun fromDocument(doc : SchemaDoc) : ValueParser<Primitive> = when (doc)
+        fun fromDocument(doc : SchemaDoc) : ValueParser<Synonym> = when (doc)
         {
             is DocDict ->
             {
-                apply(::Primitive,
+                apply(::Synonym,
                       // Name
                       doc.at("name").apply { TypeName.fromDocument(it) },
                       // Label
@@ -535,7 +574,7 @@ data class Primitive(override val name : TypeName,
                             effValue(setOf()),
                             { it.mapSet { ConstraintName.fromDocument(it) } }),
                       // Base Type Name
-                      doc.at("base_type").apply { TypeName.fromDocument(it) }
+                      doc.at("base_type").apply { BaseValueType.fromDocument(it) }
                       )
             }
             else       -> effError(UnexpectedType(DocType.DICT, docType(doc), doc.path))
@@ -736,15 +775,16 @@ sealed class ValueType
 }
 
 
+
 // Value Type : Prim
 // ---------------------------------------------------------------------------------------------
 
-data class Prim(val type : PrimValueType) : ValueType()
+data class Prim(val type : Primitive) : ValueType()
 {
     companion object
     {
         fun fromDocument(doc : SchemaDoc) : ValueParser<Prim> =
-                apply(::Prim, PrimValueType.fromDocument(doc))
+                apply(::Prim, Primitive.fromDocument(doc))
     }
 
 }
@@ -753,12 +793,12 @@ data class Prim(val type : PrimValueType) : ValueType()
 // Value Type : Prim List
 // ---------------------------------------------------------------------------------------------
 
-data class PrimList(val type : PrimValueType) : ValueType()
+data class PrimList(val type : Primitive) : ValueType()
 {
     companion object
     {
         fun fromDocument(doc : SchemaDoc) : ValueParser<PrimList> =
-                apply(::PrimList, PrimValueType.fromDocument(doc))
+                apply(::PrimList, Primitive.fromDocument(doc))
     }
 }
 
@@ -789,50 +829,94 @@ data class CustomList(val name : TypeName) : ValueType()
 }
 
 
-// Value Type > Primitive
+// ---------------------------------------------------------------------------------------------
+// BASE VALUE TYPE
 // ---------------------------------------------------------------------------------------------
 
-sealed class PrimValueType
+@Suppress("UNCHECKED_CAST")
+sealed class BaseValueType
 {
-
-    object Any     : PrimValueType()
-
-
-    object Number  : PrimValueType()
-
-
-    object String  : PrimValueType()
-
-
-    object Boolean : PrimValueType()
-
-
     companion object
     {
-        fun fromDocument(doc : SchemaDoc) : ValueParser<PrimValueType> = when (doc)
+        fun fromDocument(doc : SchemaDoc) : ValueParser<BaseValueType> = when (doc.case())
         {
-            is DocText -> when (doc.text)
-            {
-                "any"     -> effValue<ValueError,PrimValueType>(PrimValueType.Any)
-                "number"  -> effValue<ValueError,PrimValueType>(PrimValueType.Number)
-                "string"  -> effValue<ValueError,PrimValueType>(PrimValueType.String)
-                "boolean" -> effValue<ValueError,PrimValueType>(PrimValueType.Boolean)
-                else      -> effError<ValueError,PrimValueType>(UnknownCase(doc.text, doc.path))
-            }
-            else       -> effError(UnexpectedType(DocType.TEXT, docType(doc), doc.path))
-
+            "prim_type"   -> BasePrim.fromDocument(doc) as ValueParser<BaseValueType>
+            "custom_type" -> BaseCustom.fromDocument(doc) as ValueParser<BaseValueType>
+            else          -> effError(UnknownCase(doc.case(), doc.path))
         }
     }
 }
 
 
+// Base Value Type : Prim
+// ---------------------------------------------------------------------------------------------
 
-fun primValueType(typeName : TypeName) : PrimValueType? = when (typeName.name)
+data class BasePrim(val type : Primitive) : BaseValueType()
 {
-    "any"     -> PrimValueType.Any
-    "number"  -> PrimValueType.Number
-    "string"  -> PrimValueType.String
-    "boolean" -> PrimValueType.Boolean
+    companion object
+    {
+        fun fromDocument(doc : SchemaDoc) : ValueParser<BasePrim> =
+                apply(::BasePrim, Primitive.fromDocument(doc))
+    }
+
+}
+
+// Base Value Type : Custom
+// ---------------------------------------------------------------------------------------------
+
+data class BaseCustom(val name : TypeName) : BaseValueType()
+{
+    companion object
+    {
+        fun fromDocument(doc : SchemaDoc) : ValueParser<BaseCustom> =
+                apply(::BaseCustom, TypeName.fromDocument(doc))
+    }
+}
+
+// Value Type > Synonym
+// ---------------------------------------------------------------------------------------------
+
+sealed class Primitive
+{
+
+    object Any     : Primitive()
+
+
+    object Number  : Primitive()
+
+
+    object String  : Primitive()
+
+
+    object Boolean : Primitive()
+
+
+    companion object
+    {
+        fun fromDocument(doc : SchemaDoc) : ValueParser<Primitive> = when (doc)
+        {
+            is DocText -> when (doc.text)
+            {
+                "any"     -> effValue<ValueError, Primitive>(Primitive.Any)
+                "number"  -> effValue<ValueError, Primitive>(Primitive.Number)
+                "string"  -> effValue<ValueError, Primitive>(Primitive.String)
+                "boolean" -> effValue<ValueError, Primitive>(Primitive.Boolean)
+                else      -> effError<ValueError, Primitive>(UnknownCase(doc.text, doc.path))
+            }
+            else       -> effError(UnexpectedType(DocType.TEXT, docType(doc), doc.path))
+
+        }
+    }
+
+}
+
+
+fun primValueType(typeName : TypeName) : Primitive? = when (typeName.name)
+{
+    "any"     -> Primitive.Any
+    "number"  -> Primitive.Number
+    "string"  -> Primitive.String
+    "boolean" -> Primitive.Boolean
     else      -> null
 }
 
@@ -855,7 +939,7 @@ fun isPrimitiveType(typeName : TypeName) : Boolean = primValueType(typeName) != 
 
 //fun valueKind(typeString : String) : ValueKind = when
 //{
-//    primValueType(typeString) != null -> ValueKind.Primitive
+//    primValueType(typeString) != null -> ValueKind.Synonym
 //    typeString.equals("list")         -> ValueKind.Collection
 //    else                              -> ValueKind.Custom
 //}

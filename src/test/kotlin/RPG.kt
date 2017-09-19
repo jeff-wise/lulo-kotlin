@@ -1,4 +1,5 @@
 
+import com.kispoko.culebra.encodeYaml
 import data.rpg.*
 import effect.Eff
 import effect.Err
@@ -123,6 +124,21 @@ class RPG : ShouldSpec()
         }
 
 
+        "Document Generating" {
+
+            should("Generate yaml string then parse back to original doc") {
+                val docYamlString = encodeYaml(silaDocObject)
+                val schema = parseSchema(rpgSchemaYaml)
+                when (schema) {
+                    is SchemaParseValue -> {
+                        val schemaDoc = schema.schema.document(docYamlString)
+                        schemaDoc shouldBe silaDocObject
+                    }
+                    is SchemaParseError -> schema should beOfType<SchemaParseValue>()
+                }
+                // System.out.println(docYamlString)
+            }
+        }
 
     }
 }

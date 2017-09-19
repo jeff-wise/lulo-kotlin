@@ -56,7 +56,9 @@ val rpgSchemaYaml =
       primitive_type:
         name: race
         label: Race
-        base_type: string
+        base_type:
+          type: prim_type
+          prim_type: string
         constraints:
         - race_set
     - type: product_type
@@ -158,7 +160,7 @@ val rpgSchemaObject =
                     Field(FieldName("name"),
                           FieldPresence.Required,
                           Just(FieldDescription("The character's name.")),
-                          Prim(PrimValueType.String),
+                          Prim(Primitive.String),
                           Nothing()),
                     Field(FieldName("race"),
                           FieldPresence.Required,
@@ -177,13 +179,13 @@ val rpgSchemaObject =
                           Nothing())
                 )
             ),
-            Primitive(
+            Synonym(
                 TypeName("race"),
                 TypeLabel("Race"),
                 Nothing(),
                 Nothing(),
                 setOf(ConstraintName("race_set")),
-                TypeName("string")
+                BasePrim(Primitive.String)
             ),
             Product(
                 TypeName("class"),
@@ -195,17 +197,17 @@ val rpgSchemaObject =
                     Field(FieldName("name"),
                           FieldPresence.Required,
                           Nothing(),
-                          Prim(PrimValueType.String),
+                          Prim(Primitive.String),
                           Nothing()),
                     Field(FieldName("uses_magic"),
                           FieldPresence.Required,
                           Nothing(),
-                          Prim(PrimValueType.Boolean),
+                          Prim(Primitive.Boolean),
                           Nothing()),
                     Field(FieldName("health_bonus"),
                           FieldPresence.Optional,
                           Nothing(),
-                          Prim(PrimValueType.Number),
+                          Prim(Primitive.Number),
                           Nothing())
                 )
             ),
@@ -232,12 +234,12 @@ val rpgSchemaObject =
                     Field(FieldName("name"),
                           FieldPresence.Required,
                           Just(FieldDescription("The weapon name.")),
-                          Prim(PrimValueType.String),
+                          Prim(Primitive.String),
                           Nothing()),
                     Field(FieldName("damage"),
                           FieldPresence.Required,
                           Just(FieldDescription("The weapon damage.")),
-                          Prim(PrimValueType.Number),
+                          Prim(Primitive.Number),
                           Nothing())
                 )
             ),
@@ -251,12 +253,12 @@ val rpgSchemaObject =
                     Field(FieldName("name"),
                           FieldPresence.Required,
                           Nothing(),
-                          Prim(PrimValueType.String),
+                          Prim(Primitive.String),
                           Nothing()),
                     Field(FieldName("price"),
                           FieldPresence.Required,
                           Nothing(),
-                          Prim(PrimValueType.Number),
+                          Prim(Primitive.Number),
                           Nothing())
                 )
             )

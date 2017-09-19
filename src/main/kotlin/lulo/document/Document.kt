@@ -2,6 +2,7 @@
 package lulo.document
 
 
+import com.kispoko.culebra.*
 import effect.*
 import lulo.value.*
 import lulo.value.UnexpectedType
@@ -16,7 +17,7 @@ import lulo.value.UnexpectedType
  * Schema Document
  */
 sealed class SchemaDoc(open val path : DocPath,
-                       open val cases : List<String>)
+                       open val cases : List<String>) : ToYaml
 {
 
     abstract fun nextCase() : SchemaDoc
@@ -24,10 +25,15 @@ sealed class SchemaDoc(open val path : DocPath,
 
     fun case() : String? =
         if (cases.isNotEmpty())
-            cases.last()
+            cases.first()
         else
             null
 
+}
+
+
+interface ToDocument {
+    fun toDocument() : SchemaDoc
 }
 
 
@@ -35,7 +41,7 @@ sealed class SchemaDoc(open val path : DocPath,
 // Document > Dictionary
 // ---------------------------------------------------------------------------------------------
 
-data class DocDict(val fields : Map<String, SchemaDoc>,
+data class DocDict(private val fields : Map<String, SchemaDoc>,
                    override val cases : List<String>,
                    override val path : DocPath) : SchemaDoc(path, cases)
 {
@@ -52,6 +58,25 @@ data class DocDict(val fields : Map<String, SchemaDoc>,
 
     override fun nextCase() : SchemaDoc = DocDict(fields, cases.drop(1), path)
 
+
+
+    fun fields() : Map<String,SchemaDoc> = this.fields
+
+
+    // -----------------------------------------------------------------------------------------
+    // TO YAML
+    // -----------------------------------------------------------------------------------------
+
+    override fun toYaml() : YamlValue
+    {
+        val hm = hashMapOf<String,YamlValue>()
+
+        this.fields.forEach { key, doc ->
+            hm.put(key, doc.toYaml())
+        }
+
+        return wrapInCases(YamlDict(hm), this.cases)
+    }
 
 
     // -----------------------------------------------------------------------------------------
@@ -120,7 +145,7 @@ data class DocDict(val fields : Map<String, SchemaDoc>,
 
     inline fun <reified A : Enum<A>> enum(key : String) : ValueParser<A>
     {
-        val fieldDoc = fields[key]
+        val fieldDoc = this.fields()[key]
 
         if (fieldDoc == null)
         {
@@ -345,6 +370,30 @@ data class DocDict(val fields : Map<String, SchemaDoc>,
             is Err -> return effValue(Nothing())
         }
     }
+
+
+
+    // -----------------------------------------------------------------------------------------
+    // MERGE
+    // -----------------------------------------------------------------------------------------
+
+    // TODO why is type inference so bad??? Does not work at call site with type sig of SchemaDoc
+    fun maybeMerge(pair : Maybe<Pair<String,DocNumber>>) : DocDict
+    {
+        val newFieldMap : MutableMap<String,SchemaDoc> = mutableMapOf()
+
+        when (pair) {
+            is Just -> {
+                this.fields.forEach { key, doc ->
+                    newFieldMap.put(key, doc)
+                }
+                newFieldMap.put(pair.value.first, pair.value.second)
+                return DocDict(newFieldMap, this.cases, this.path)
+            }
+        }
+
+        return this
+    }
 }
 
 
@@ -367,6 +416,14 @@ data class DocList(val docs : List<SchemaDoc>,
 
 
     override fun nextCase() : SchemaDoc = DocList(docs, cases.drop(1), path)
+
+
+    // -----------------------------------------------------------------------------------------
+    // TO YAML
+    // -----------------------------------------------------------------------------------------
+
+    override fun toYaml() : YamlValue =
+        wrapInCases(YamlArray(docs.map { it.toYaml() }), this.cases)
 
 
     fun <T> map(f : (SchemaDoc) -> ValueParser<T>) : ValueParser<List<T>>
@@ -598,6 +655,13 @@ data class DocText(val text : String,
 
     override fun nextCase() : SchemaDoc = DocText(text, cases.drop(1), path)
 
+
+    // -----------------------------------------------------------------------------------------
+    // TO YAML
+    // -----------------------------------------------------------------------------------------
+
+    override fun toYaml() = wrapInCases(YamlText(this.text), this.cases)
+
 }
 
 
@@ -620,6 +684,18 @@ data class DocNumber(val number : Double,
 
 
     override fun nextCase() : SchemaDoc = DocNumber(number, cases.drop(1), path)
+
+
+    // -----------------------------------------------------------------------------------------
+    // TO YAML
+    // -----------------------------------------------------------------------------------------
+
+    override fun toYaml() : YamlValue =
+        if ((this.number == Math.floor(this.number)) && !this.number.isInfinite())
+            wrapInCases(YamlInteger(this.number.toInt()), this.cases)
+        else
+            wrapInCases(YamlFloat(this.number), this.cases)
+
 }
 
 
@@ -642,7 +718,36 @@ data class DocBoolean(val boolean : Boolean,
 
 
     override fun nextCase() : SchemaDoc = DocBoolean(boolean, cases.drop(1), path)
+
+
+    // -----------------------------------------------------------------------------------------
+    // TO YAML
+    // -----------------------------------------------------------------------------------------
+
+    override fun toYaml() = wrapInCases(YamlBool(this.boolean), this.cases)
+
 }
+
+
+// ---------------------------------------------------------------------------------------------
+// YAML
+// ---------------------------------------------------------------------------------------------
+
+fun wrapInCases(yamlValue : YamlValue, cases : List<String>) : YamlValue =
+    if (cases.isEmpty())
+    {
+        yamlValue
+    }
+    else
+    {
+        val case = cases.first()
+
+        val newYamlValue = YamlDict(hashMapOf(
+                                "type" to YamlText(case),
+                                case   to yamlValue))
+
+        wrapInCases(newYamlValue, cases.drop(1))
+    }
 
 
 // ---------------------------------------------------------------------------------------------

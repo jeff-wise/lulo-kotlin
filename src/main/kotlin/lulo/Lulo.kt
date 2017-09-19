@@ -8,7 +8,7 @@ import lulo.document.DocParseError
 import lulo.schema.Schema
 import lulo.schema.schemaSchema
 import lulo.value.ValueError
-
+import java.io.InputStream
 
 
 // ---------------------------------------------------------------------------------------------
@@ -19,6 +19,29 @@ import lulo.value.ValueError
 fun parseSchema(yamlString : String) : SchemaParseResult
 {
     val schemaDoc = schemaSchema.parseDocument(yamlString)
+    when (schemaDoc)
+    {
+        is Val ->
+        {
+            val schema = Schema.fromDocument(schemaDoc.value)
+            return when (schema)
+            {
+                is Val -> SchemaParseValue(schema.value)
+                is Err -> SchemaInternalError(schema.error)
+            }
+        }
+        is Err ->
+        {
+            return SchemaFormatError(schemaDoc.error)
+        }
+    }
+
+}
+
+
+fun parseSchema(yamlIS : InputStream) : SchemaParseResult
+{
+    val schemaDoc = schemaSchema.parseDocument(yamlIS)
     when (schemaDoc)
     {
         is Val ->
